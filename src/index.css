@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .shadow-bubble {
+    box-shadow: 10px 10px 24px #dce0e6, -10px -10px 24px #ffffff;
+  }
+  .shadow-bubble-sm {
+    box-shadow: 4px 4px 12px #dce0e6, -4px -4px 12px #ffffff;
+  }
+  .shadow-bubble-lg {
+    box-shadow: 14px 14px 32px #d6dce4, -14px -14px 32px #ffffff;
+  }
+  .shadow-bubble-inset {
+    box-shadow: inset 4px 4px 8px #dce0e6, inset -4px -4px 8px #ffffff;
+  }
+  .shadow-bubble-inset-sm {
+    box-shadow: inset 2px 2px 5px #dce0e6, inset -2px -2px 5px #ffffff;
+  }
+  .surface-bubble {
+    background-color: #f4f6f8;
+  }
+  .surface-bubble-alt {
+    background-color: #f0f3f5;
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+body {
+  font-family: 'Montserrat', sans-serif;
+}

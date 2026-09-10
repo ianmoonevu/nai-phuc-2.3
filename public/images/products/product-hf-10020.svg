@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="pBg3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#27272a" />
+    </linearGradient>
+    <linearGradient id="goldBrass" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d97706" />
+      <stop offset="40%" stop-color="#fef08a" />
+      <stop offset="70%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#pBg3)" />
+
+  <!-- High Tech Grid -->
+  <g stroke="#ffffff" stroke-width="0.75" stroke-opacity="0.08">
+    <line x1="0" y1="150" x2="800" y2="150" />
+    <line x1="0" y1="300" x2="800" y2="300" />
+    <line x1="0" y1="450" x2="800" y2="450" />
+    <line x1="200" y1="0" x2="200" y2="600" />
+    <line x1="400" y1="0" x2="400" y2="600" />
+    <line x1="600" y1="0" x2="600" y2="600" />
+  </g>
+
+  <!-- Header -->
+  <rect x="40" y="40" width="180" height="32" rx="16" fill="#b45309" />
+  <text x="130" y="61" fill="#ffffff" font-family="'Montserrat', sans-serif" font-size="11" font-weight="bold" text-anchor="middle">SERIES 100/20 MU</text>
+  <text x="240" y="62" fill="#fde047" font-family="'Montserrat', sans-serif" font-size="13" font-weight="600">ULTRA-HIGH PERFORMANCE CONCRETE (UHPC)</text>
+
+  <!-- Brass-Coated Straight Micro-Fibers Graphic -->
+  <g transform="translate(100, 180)">
+    <!-- Dense Micro-Fiber Array -->
+    <g stroke="url(#goldBrass)" stroke-width="6" stroke-linecap="round">
+      <line x1="40" y1="60" x2="340" y2="60" />
+      <line x1="80" y1="90" x2="380" y2="90" />
+      <line x1="60" y1="120" x2="360" y2="120" />
+      <line x1="120" y1="150" x2="420" y2="150" />
+      <line x1="90" y1="180" x2="390" y2="180" />
+    </g>
+
+    <!-- Spec Zoom Annotation -->
+    <g transform="translate(440, 40)">
+      <circle cx="80" cy="80" r="70" fill="#0f172a" stroke="#eab308" stroke-width="3" />
+      <text x="80" y="65" fill="#fde047" font-family="'Montserrat', sans-serif" font-size="11" font-weight="bold" text-anchor="middle">ASPECT RATIO</text>
+      <text x="80" y="95" fill="#ffffff" font-family="'Montserrat', sans-serif" font-size="24" font-weight="900" text-anchor="middle">100</text>
+      <text x="80" y="115" fill="#94a3b8" font-family="'Montserrat', sans-serif" font-size="10" text-anchor="middle">d = 0.20 mm</text>
+    </g>
+  </g>
+
+  <!-- Technical Spec Box -->
+  <g transform="translate(40, 440)">
+    <rect width="720" height="120" rx="16" fill="#18181b" stroke="#eab308" stroke-width="2" />
+    
+    <g transform="translate(30, 30)">
+      <text x="0" y="18" fill="#eab308" font-family="'Montserrat', sans-serif" font-size="11" font-weight="600">TENSILE STRENGTH</text>
+      <text x="0" y="44" fill="#ffffff" font-family="'Montserrat', sans-serif" font-size="20" font-weight="800">≥ 2,000 MPa</text>
+      <text x="0" y="64" fill="#fef08a" font-family="'Montserrat', sans-serif" font-size="11" font-weight="600">Ultra-High Tensile Class</text>
+    </g>
+
+    <g transform="translate(260, 30)">
+      <text x="0" y="18" fill="#eab308" font-family="'Montserrat', sans-serif" font-size="11" font-weight="600">FIBER COUNT / KG</text>
+      <text x="0" y="44" fill="#ffffff" font-family="'Montserrat', sans-serif" font-size="20" font-weight="800">90,110 / kg</text>
+      <text x="0" y="64" fill="#38bdf8" font-family="'Montserrat', sans-serif" font-size="11" font-weight="600">Micro-Bridging Network</text>
+    </g>
+
+    <g transform="translate(490, 30)">
+      <text x="0" y="18" fill="#eab308" font-family="'Montserrat', sans-serif" font-size="11" font-weight="600">SURFACE COATING</text>
+      <text x="0" y="44" fill="#ffffff" font-family="'Montserrat', sans-serif" font-size="18" font-weight="800">Brass / Copper</text>
+      <text x="0" y="64" fill="#cbd5e1" font-family="'Montserrat', sans-serif" font-size="11" font-weight="600">Maximum Interfacial Bond</text>
+    </g>
+  </g>
+</svg>
