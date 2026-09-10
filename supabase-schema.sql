@@ -2,7 +2,7 @@
 -- HOKI GREEN ENGINEERING PLATFORM — SUPABASE POSTGRESQL SCHEMA SCRIPT
 -- =========================================================================
 -- Execute this entire script directly in the Supabase Dashboard -> SQL Editor.
--- This script creates all tables, indexes, Row Level Security (RLS) policies,
+-- This script creates all tables, idempotent column migrations, RLS policies,
 -- Realtime publications, and default initial seed data.
 -- =========================================================================
 
@@ -10,10 +10,12 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- -------------------------------------------------------------------------
--- 1. TABLE: site_branding (Hotline, Social Links, Hero Image, Video, Logos)
+-- 1. TABLE: site_branding (Hotline, Social Links, Hero, Video, Logos, Avatars)
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.site_branding (
     id TEXT PRIMARY KEY DEFAULT 'default',
+    brand_name TEXT NOT NULL DEFAULT 'HOKI',
+    tagline TEXT NOT NULL DEFAULT 'Innovative and Sustainable',
     header_logo_url TEXT,
     header_logo_height INTEGER DEFAULT 40,
     footer_logo_url TEXT,
@@ -55,6 +57,34 @@ CREATE TABLE IF NOT EXISTS public.site_branding (
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+-- Idempotent column check for site_branding
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS brand_name TEXT NOT NULL DEFAULT 'HOKI';
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS tagline TEXT NOT NULL DEFAULT 'Innovative and Sustainable';
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS header_logo_url TEXT;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS header_logo_height INTEGER DEFAULT 40;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS footer_logo_url TEXT;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS footer_logo_height INTEGER DEFAULT 48;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS favicon_url TEXT DEFAULT '/favicon.svg';
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS hotline_phone TEXT DEFAULT '0916 576 156';
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS hotline_label TEXT DEFAULT 'CALL NOW';
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS hotline_subtitle TEXT DEFAULT 'Direct Engineering Desk';
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS hotline_enabled BOOLEAN DEFAULT true;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS social_links JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS hero_image_url TEXT;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS hero_overlay_opacity INTEGER DEFAULT 15;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS about_hero_image_url TEXT;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS about_factory_image_url TEXT;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS about_leadership_avatars JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS about_advisory_avatars JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS main_page_youtube_url TEXT;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS main_page_video_title TEXT;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS main_page_video_channel_url TEXT;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS main_page_video_channel_name TEXT;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS main_page_video_autoplay BOOLEAN DEFAULT false;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS main_page_video_muted BOOLEAN DEFAULT false;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS main_page_video_default_open BOOLEAN DEFAULT true;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
 -- -------------------------------------------------------------------------
 -- 2. TABLE: projects (Civil & Industrial Flooring Case Studies)
 -- -------------------------------------------------------------------------
@@ -69,6 +99,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
     sector_label TEXT,
     location TEXT,
     area TEXT,
+    year TEXT,
     description TEXT,
     image TEXT,
     gallery JSONB DEFAULT '[]'::jsonb,
@@ -91,6 +122,33 @@ CREATE TABLE IF NOT EXISTS public.projects (
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+-- Idempotent column check for projects
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS slug TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS code TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS client TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS facility_type TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS sector TEXT DEFAULT 'industrial';
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS sector_label TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS area TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS year TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS challenge TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS solution TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS verification TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS is_highlight BOOLEAN DEFAULT false;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS metrics JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS specifications JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS client_quote TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS quote_author TEXT;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS drawings_available BOOLEAN DEFAULT true;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS drone_video_available BOOLEAN DEFAULT false;
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
 -- -------------------------------------------------------------------------
 -- 3. TABLE: articles (Technical Monographs & Research Papers)
 -- -------------------------------------------------------------------------
@@ -108,10 +166,29 @@ CREATE TABLE IF NOT EXISTS public.articles (
     gallery JSONB DEFAULT '[]'::jsonb,
     is_flagship BOOLEAN DEFAULT false,
     content_snippet TEXT,
+    sections JSONB DEFAULT '[]'::jsonb,
     full_content JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
+
+-- Idempotent column check for articles
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS subtitle TEXT;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS category_slug TEXT DEFAULT 'standards';
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS date TEXT;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS read_time TEXT;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS author TEXT;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS standards TEXT;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS is_flagship BOOLEAN DEFAULT false;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS content_snippet TEXT;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS full_content JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
 
 -- -------------------------------------------------------------------------
 -- 4. TABLE: consultation_requests (RFQs & 1-on-1 Engineering Bookings)
@@ -128,7 +205,39 @@ CREATE TABLE IF NOT EXISTS public.consultation_requests (
     submitted_at TEXT,
     notes TEXT,
     status TEXT DEFAULT 'new',
-    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+);
+
+-- Idempotent column check for consultation_requests
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS firm TEXT;
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS project_type TEXT;
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS slab_area TEXT;
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS target_date TEXT;
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS submitted_at TEXT;
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'new';
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+-- Compatibility table/alias: consultations
+CREATE TABLE IF NOT EXISTS public.consultations (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    firm TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    project_type TEXT,
+    slab_area TEXT,
+    target_date TEXT,
+    submitted_at TEXT,
+    notes TEXT,
+    status TEXT DEFAULT 'new',
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
 -- -------------------------------------------------------------------------
@@ -145,6 +254,14 @@ CREATE TABLE IF NOT EXISTS public.media_items (
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS url TEXT;
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS size TEXT;
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS uploaded_at TEXT;
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general';
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS dimensions TEXT;
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
 -- -------------------------------------------------------------------------
 -- 6. TABLE: epc_partners (Strategic EPC Contractor Ticker)
 -- -------------------------------------------------------------------------
@@ -155,13 +272,29 @@ CREATE TABLE IF NOT EXISTS public.epc_partners (
     role TEXT,
     origin TEXT,
     logo_url TEXT,
+    website TEXT,
     website_url TEXT,
     order_index INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+    sort_order INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+-- Idempotent column check for epc_partners
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS subtitle TEXT;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS role TEXT;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS origin TEXT;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS logo_url TEXT;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS website TEXT;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS website_url TEXT;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
 -- -------------------------------------------------------------------------
--- 7. TABLE: about_page_info (About Us Story, Mission, & Leadership Headers)
+-- 7. TABLE: about_page_info & about_info (Story, Mission, & Leadership)
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.about_page_info (
     id TEXT PRIMARY KEY DEFAULT 'default',
@@ -175,6 +308,12 @@ CREATE TABLE IF NOT EXISTS public.about_page_info (
     leadership_subheading TEXT DEFAULT 'Meet the structural metallurgists, concrete rheologists, and civil infrastructure leaders directing HOKI.',
     advisory_heading TEXT DEFAULT 'Global Technical Advisory Board',
     advisory_subheading TEXT DEFAULT 'Independent peer-reviewers and international code authors ensuring uncompromising structural compliance.',
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.about_info (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    data JSONB NOT NULL DEFAULT '{}'::jsonb,
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
@@ -196,43 +335,111 @@ ALTER TABLE public.site_branding ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.consultation_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.consultations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.media_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.epc_partners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.about_page_info ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.about_info ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.epc_section_config ENABLE ROW LEVEL SECURITY;
 
 -- Allow public anonymous read access to all content tables
-CREATE POLICY "Allow public read access on site_branding" ON public.site_branding FOR SELECT USING (true);
-CREATE POLICY "Allow public read access on projects" ON public.projects FOR SELECT USING (true);
-CREATE POLICY "Allow public read access on articles" ON public.articles FOR SELECT USING (true);
-CREATE POLICY "Allow public read access on consultation_requests" ON public.consultation_requests FOR SELECT USING (true);
-CREATE POLICY "Allow public read access on media_items" ON public.media_items FOR SELECT USING (true);
-CREATE POLICY "Allow public read access on epc_partners" ON public.epc_partners FOR SELECT USING (true);
-CREATE POLICY "Allow public read access on about_page_info" ON public.about_page_info FOR SELECT USING (true);
-CREATE POLICY "Allow public read access on epc_section_config" ON public.epc_section_config FOR SELECT USING (true);
-
--- Allow public anonymous write/insert/update/delete (managed by frontend admin state)
-CREATE POLICY "Allow public insert/update on site_branding" ON public.site_branding FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public insert/update on projects" ON public.projects FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public insert/update on articles" ON public.articles FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public insert/update on consultation_requests" ON public.consultation_requests FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public insert/update on media_items" ON public.media_items FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public insert/update on epc_partners" ON public.epc_partners FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public insert/update on about_page_info" ON public.about_page_info FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public insert/update on epc_section_config" ON public.epc_section_config FOR ALL USING (true) WITH CHECK (true);
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'site_branding' AND policyname = 'Public Access site_branding') THEN
+    CREATE POLICY "Public Access site_branding" ON public.site_branding FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'projects' AND policyname = 'Public Access projects') THEN
+    CREATE POLICY "Public Access projects" ON public.projects FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'articles' AND policyname = 'Public Access articles') THEN
+    CREATE POLICY "Public Access articles" ON public.articles FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'consultation_requests' AND policyname = 'Public Access consultation_requests') THEN
+    CREATE POLICY "Public Access consultation_requests" ON public.consultation_requests FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'consultations' AND policyname = 'Public Access consultations') THEN
+    CREATE POLICY "Public Access consultations" ON public.consultations FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'media_items' AND policyname = 'Public Access media_items') THEN
+    CREATE POLICY "Public Access media_items" ON public.media_items FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'epc_partners' AND policyname = 'Public Access epc_partners') THEN
+    CREATE POLICY "Public Access epc_partners" ON public.epc_partners FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'about_page_info' AND policyname = 'Public Access about_page_info') THEN
+    CREATE POLICY "Public Access about_page_info" ON public.about_page_info FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'about_info' AND policyname = 'Public Access about_info') THEN
+    CREATE POLICY "Public Access about_info" ON public.about_info FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'epc_section_config' AND policyname = 'Public Access epc_section_config') THEN
+    CREATE POLICY "Public Access epc_section_config" ON public.epc_section_config FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- =========================================================================
 -- REALTIME REPLICATION CONFIGURATION
 -- =========================================================================
 -- Enable Supabase Realtime for all tables so multi-browser clients get instant updates
-ALTER PUBLICATION supabase_realtime ADD TABLE public.site_branding;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.projects;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.articles;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.consultation_requests;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.media_items;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.epc_partners;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.about_page_info;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.epc_section_config;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.site_branding;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.projects;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.articles;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.consultation_requests;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.consultations;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.media_items;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.epc_partners;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.about_page_info;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.about_info;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.epc_section_config;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
 -- =========================================================================
 -- SEED INITIAL DEFAULT RECORDS
@@ -242,4 +449,5 @@ VALUES ('default', '0916 576 156', 'CALL NOW', 'Direct Engineering Desk', true)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.about_page_info (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.about_info (id, data) VALUES ('default', '{}'::jsonb) ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.epc_section_config (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;

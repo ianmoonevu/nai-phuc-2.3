@@ -117,133 +117,253 @@ export const AdminSupabaseConfigSection: React.FC<AdminSupabaseConfigSectionProp
   };
 
   const handleCopySql = () => {
-    const sqlScript = `-- HOKI GREEN ENGINEERING PLATFORM - SUPABASE SCHEMA SETUP
-CREATE TABLE IF NOT EXISTS site_branding (
+    const sqlScript = `-- HOKI GREEN ENGINEERING PLATFORM — COMPLETE SUPABASE SCHEMA & MIGRATION SCRIPT
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 1. TABLE: site_branding
+CREATE TABLE IF NOT EXISTS public.site_branding (
   id TEXT PRIMARY KEY DEFAULT 'default',
   brand_name TEXT NOT NULL DEFAULT 'HOKI',
   tagline TEXT NOT NULL DEFAULT 'Innovative and Sustainable',
-  logo_url TEXT,
-  favicon_url TEXT,
-  hero_image_url TEXT,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  header_logo_url TEXT,
+  header_logo_height INTEGER DEFAULT 40,
+  footer_logo_url TEXT,
+  footer_logo_height INTEGER DEFAULT 48,
+  favicon_url TEXT DEFAULT '/favicon.svg',
+  hotline_phone TEXT DEFAULT '0916 576 156',
+  hotline_label TEXT DEFAULT 'CALL NOW',
+  hotline_subtitle TEXT DEFAULT 'Direct Engineering Desk',
+  hotline_enabled BOOLEAN DEFAULT true,
+  social_links JSONB DEFAULT '{}'::jsonb,
+  hero_image_url TEXT DEFAULT '/images/hoki-industrial-floor-hero.svg',
+  hero_overlay_opacity INTEGER DEFAULT 15,
+  about_hero_image_url TEXT,
+  about_factory_image_url TEXT,
+  about_leadership_avatars JSONB DEFAULT '{}'::jsonb,
+  about_advisory_avatars JSONB DEFAULT '{}'::jsonb,
+  main_page_youtube_url TEXT,
+  main_page_video_title TEXT,
+  main_page_video_channel_url TEXT,
+  main_page_video_channel_name TEXT,
+  main_page_video_autoplay BOOLEAN DEFAULT false,
+  main_page_video_muted BOOLEAN DEFAULT false,
+  main_page_video_default_open BOOLEAN DEFAULT true,
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
-CREATE TABLE IF NOT EXISTS projects (
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS about_advisory_avatars JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS about_leadership_avatars JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+-- 2. TABLE: projects
+CREATE TABLE IF NOT EXISTS public.projects (
   id TEXT PRIMARY KEY,
-  code TEXT NOT NULL,
+  code TEXT,
   slug TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
-  sector TEXT NOT NULL,
-  sector_label TEXT NOT NULL,
-  location TEXT NOT NULL,
-  facility_type TEXT NOT NULL,
-  area TEXT NOT NULL,
-  year TEXT NOT NULL,
+  client TEXT,
+  facility_type TEXT,
+  sector TEXT DEFAULT 'industrial',
+  sector_label TEXT,
+  location TEXT,
+  area TEXT,
+  year TEXT,
   image TEXT NOT NULL,
-  description TEXT NOT NULL,
-  challenge TEXT NOT NULL,
-  solution TEXT NOT NULL,
-  specifications JSONB NOT NULL,
-  metrics JSONB NOT NULL,
-  gallery JSONB,
+  description TEXT,
+  challenge TEXT,
+  solution TEXT,
+  verification TEXT,
+  is_highlight BOOLEAN DEFAULT false,
+  metrics JSONB DEFAULT '[]'::jsonb,
+  specifications JSONB DEFAULT '{}'::jsonb,
+  gallery JSONB DEFAULT '[]'::jsonb,
   client_quote TEXT,
   quote_author TEXT,
-  is_highlight BOOLEAN DEFAULT false,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  drawings_available BOOLEAN DEFAULT true,
+  drone_video_available BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
-CREATE TABLE IF NOT EXISTS articles (
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+-- 3. TABLE: articles
+CREATE TABLE IF NOT EXISTS public.articles (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
-  subtitle TEXT NOT NULL,
-  category TEXT NOT NULL,
-  category_slug TEXT NOT NULL,
-  author TEXT NOT NULL,
-  date TEXT NOT NULL,
-  read_time TEXT NOT NULL,
-  standards TEXT NOT NULL,
-  image TEXT NOT NULL,
-  content_snippet TEXT NOT NULL,
-  sections JSONB NOT NULL,
-  gallery JSONB,
+  subtitle TEXT,
+  category TEXT,
+  category_slug TEXT DEFAULT 'standards',
+  author TEXT,
+  date TEXT,
+  read_time TEXT,
+  standards TEXT,
+  image TEXT,
+  gallery JSONB DEFAULT '[]'::jsonb,
   is_flagship BOOLEAN DEFAULT false,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  content_snippet TEXT,
+  sections JSONB DEFAULT '[]'::jsonb,
+  full_content JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
-CREATE TABLE IF NOT EXISTS consultations (
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+-- 4. TABLE: consultation_requests & consultations
+CREATE TABLE IF NOT EXISTS public.consultation_requests (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  firm TEXT NOT NULL,
   email TEXT NOT NULL,
   phone TEXT,
-  firm TEXT NOT NULL,
-  project_type TEXT NOT NULL,
+  project_type TEXT,
   slab_area TEXT,
   target_date TEXT,
+  submitted_at TEXT,
   notes TEXT,
-  status TEXT NOT NULL DEFAULT 'new',
-  submitted_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  status TEXT DEFAULT 'new',
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
-CREATE TABLE IF NOT EXISTS media_items (
+CREATE TABLE IF NOT EXISTS public.consultations (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  firm TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT,
+  project_type TEXT,
+  slab_area TEXT,
+  target_date TEXT,
+  submitted_at TEXT,
+  notes TEXT,
+  status TEXT DEFAULT 'new',
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+);
+
+-- 5. TABLE: media_items
+CREATE TABLE IF NOT EXISTS public.media_items (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   url TEXT NOT NULL,
-  category TEXT NOT NULL,
+  size TEXT,
+  uploaded_at TEXT,
+  category TEXT DEFAULT 'general',
   dimensions TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
-CREATE TABLE IF NOT EXISTS epc_partners (
+-- 6. TABLE: epc_partners
+CREATE TABLE IF NOT EXISTS public.epc_partners (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  role TEXT NOT NULL,
-  subtitle TEXT NOT NULL,
+  subtitle TEXT,
+  role TEXT,
+  origin TEXT,
   logo_url TEXT,
   website TEXT,
+  website_url TEXT,
+  order_index INTEGER DEFAULT 0,
   sort_order INTEGER DEFAULT 0,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
-CREATE TABLE IF NOT EXISTS about_info (
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+-- 7. TABLE: about_page_info & about_info
+CREATE TABLE IF NOT EXISTS public.about_page_info (
   id TEXT PRIMARY KEY DEFAULT 'default',
-  data JSONB NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  title TEXT,
+  tagline TEXT,
+  description TEXT,
+  mission_label TEXT,
+  mission_quote TEXT,
+  mission_author TEXT,
+  leadership_heading TEXT,
+  leadership_subheading TEXT,
+  advisory_heading TEXT,
+  advisory_subheading TEXT,
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
-ALTER TABLE site_branding ENABLE ROW LEVEL SECURITY;
-ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE consultations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE media_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE epc_partners ENABLE ROW LEVEL SECURITY;
-ALTER TABLE about_info ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS public.about_info (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+);
+
+-- 8. TABLE: epc_section_config
+CREATE TABLE IF NOT EXISTS public.epc_section_config (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  title TEXT,
+  subtitle TEXT,
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.site_branding ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.consultation_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.consultations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.media_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.epc_partners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.about_page_info ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.about_info ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.epc_section_config ENABLE ROW LEVEL SECURITY;
 
 DO $$ 
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'site_branding' AND policyname = 'Public Access site_branding') THEN
-    CREATE POLICY "Public Access site_branding" ON site_branding FOR ALL USING (true) WITH CHECK (true);
+    CREATE POLICY "Public Access site_branding" ON public.site_branding FOR ALL USING (true) WITH CHECK (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'projects' AND policyname = 'Public Access projects') THEN
-    CREATE POLICY "Public Access projects" ON projects FOR ALL USING (true) WITH CHECK (true);
+    CREATE POLICY "Public Access projects" ON public.projects FOR ALL USING (true) WITH CHECK (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'articles' AND policyname = 'Public Access articles') THEN
-    CREATE POLICY "Public Access articles" ON articles FOR ALL USING (true) WITH CHECK (true);
+    CREATE POLICY "Public Access articles" ON public.articles FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'consultation_requests' AND policyname = 'Public Access consultation_requests') THEN
+    CREATE POLICY "Public Access consultation_requests" ON public.consultation_requests FOR ALL USING (true) WITH CHECK (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'consultations' AND policyname = 'Public Access consultations') THEN
-    CREATE POLICY "Public Access consultations" ON consultations FOR ALL USING (true) WITH CHECK (true);
+    CREATE POLICY "Public Access consultations" ON public.consultations FOR ALL USING (true) WITH CHECK (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'media_items' AND policyname = 'Public Access media_items') THEN
     CREATE POLICY "Public Access media_items" ON media_items FOR ALL USING (true) WITH CHECK (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'epc_partners' AND policyname = 'Public Access epc_partners') THEN
-    CREATE POLICY "Public Access epc_partners" ON epc_partners FOR ALL USING (true) WITH CHECK (true);
+    CREATE POLICY "Public Access epc_partners" ON public.epc_partners FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'about_page_info' AND policyname = 'Public Access about_page_info') THEN
+    CREATE POLICY "Public Access about_page_info" ON public.about_page_info FOR ALL USING (true) WITH CHECK (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'about_info' AND policyname = 'Public Access about_info') THEN
-    CREATE POLICY "Public Access about_info" ON about_info FOR ALL USING (true) WITH CHECK (true);
+    CREATE POLICY "Public Access about_info" ON public.about_info FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'epc_section_config' AND policyname = 'Public Access epc_section_config') THEN
+    CREATE POLICY "Public Access epc_section_config" ON public.epc_section_config FOR ALL USING (true) WITH CHECK (true);
   END IF;
 END $$;
 
-ALTER PUBLICATION supabase_realtime ADD TABLE site_branding, projects, articles, consultations, media_items, epc_partners, about_info;`;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.site_branding; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.projects; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.articles; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.consultation_requests; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.consultations; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.media_items; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.epc_partners; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.about_page_info; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.about_info; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.epc_section_config; EXCEPTION WHEN OTHERS THEN NULL; END $$;`;
 
     navigator.clipboard.writeText(sqlScript);
     setCopiedSql(true);
