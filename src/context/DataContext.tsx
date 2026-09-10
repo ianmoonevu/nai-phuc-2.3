@@ -51,23 +51,6 @@ import {
   fetchEpcConfigFromSupabase,
   saveEpcConfigToSupabase
 } from '../lib/supabaseSync';
-import {
-  subscribeToBranding,
-  saveBrandingToFirestore,
-  subscribeToMediaItems,
-  saveMediaItemToFirestore,
-  deleteMediaItemFromFirestore,
-  subscribeToProjects,
-  saveProjectToFirestore,
-  deleteProjectFromFirestore,
-  subscribeToConsultations,
-  saveConsultationToFirestore,
-  updateConsultationInFirestore,
-  subscribeToAboutInfo,
-  saveAboutInfoToFirestore,
-  subscribeToEpcConfig,
-  saveEpcConfigToFirestore
-} from '../lib/firestoreSync';
 
 const INITIAL_CONSULTATIONS: ConsultationRequest[] = [
   {
@@ -515,11 +498,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     link.href = iconUrl;
   }, [branding.faviconUrl]);
 
-  // Real-time Shared Cloud Persistence via Supabase & Firestore Dual Layer
+  // Real-time Shared Cloud Persistence via Supabase Centralized Database
   useEffect(() => {
-    // -------------------------------------------------------------
-    // A. SUPABASE CLOUD INITIALIZATION & REALTIME LISTENERS
-    // -------------------------------------------------------------
     if (isSupabaseConfigured) {
       console.log('🔗 Connecting to Supabase Cloud Database...');
 
@@ -616,91 +596,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unsubSupabaseEpc();
       };
     }
-
-    // -------------------------------------------------------------
-    // B. FIRESTORE FALLBACK SYNCHRONIZATION (Dual Redundancy)
-    // -------------------------------------------------------------
-    // 1. Synchronize Branding & Global Pictures
-    const unsubBranding = subscribeToBranding((cloudBranding) => {
-      setBranding((prev) => {
-        const merged = { ...prev, ...cloudBranding };
-        try {
-          localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(merged));
-        } catch (e) {
-          console.warn('LocalStorage error:', e);
-        }
-        return merged;
-      });
-    });
-
-    // 2. Synchronize Media Library Assets (shared across all computers)
-    const unsubMedia = subscribeToMediaItems((cloudItems) => {
-      setMediaItems((prev) => {
-        const map = new Map<string, MediaItem>();
-        prev.forEach((item) => map.set(item.id, item));
-        cloudItems.forEach((item) => map.set(item.id, item));
-        const combined = Array.from(map.values());
-        try {
-          localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(combined.slice(0, 30)));
-        } catch (e) {
-          console.warn('LocalStorage error:', e);
-        }
-        return combined;
-      });
-    });
-
-    // 3. Synchronize Projects across all computers
-    const unsubProjects = subscribeToProjects((cloudProjects) => {
-      setProjects((prev) => {
-        const map = new Map<string, ProjectCaseStudy>();
-        prev.forEach((p) => map.set(p.id, p));
-        cloudProjects.forEach((p) => {
-          const validSlug = p.slug ? slugify(p.slug) : slugify(p.title || p.code || p.id);
-          map.set(p.id, { ...p, slug: validSlug });
-        });
-        const combined = Array.from(map.values());
-        try {
-          localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(combined));
-        } catch (e) {
-          console.warn('LocalStorage error:', e);
-        }
-        return combined;
-      });
-    });
-
-    // 4. Synchronize Consultation Inquiries
-    const unsubConsultations = subscribeToConsultations((cloudConsultations) => {
-      setConsultationRequests(cloudConsultations);
-      try {
-        localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(cloudConsultations));
-      } catch (e) {
-        console.warn('LocalStorage error:', e);
-      }
-    });
-
-    // 5. Synchronize About Us Page Info
-    const unsubAbout = subscribeToAboutInfo((cloudAbout) => {
-      setAboutInfo((prev) => ({ ...prev, ...cloudAbout }));
-    });
-
-    // 6. Synchronize EPC Section Config
-    const unsubEpc = subscribeToEpcConfig((data) => {
-      if (data.partners && data.partners.length > 0) {
-        setEpcPartners(data.partners);
-      }
-      if (data.config) {
-        setEpcSectionConfig(data.config);
-      }
-    });
-
-    return () => {
-      unsubBranding();
-      unsubMedia();
-      unsubProjects();
-      unsubConsultations();
-      unsubAbout();
-      unsubEpc();
-    };
   }, []);
 
   const updateBranding = (updated: Partial<SiteBranding>) => {
@@ -715,10 +610,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       saveBrandingToSupabase(next).catch((err) => {
         console.warn('Could not sync branding to Supabase:', err);
       });
-      // Broadcast to Firestore as dual-layer
-      saveBrandingToFirestore(next).catch((err) => {
-        console.warn('Could not sync branding to Firestore:', err);
-      });
       return next;
     });
   };
@@ -732,9 +623,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     saveBrandingToSupabase(DEFAULT_BRANDING).catch((err) => {
       console.warn('Could not reset branding in Supabase:', err);
-    });
-    saveBrandingToFirestore(DEFAULT_BRANDING).catch((err) => {
-      console.warn('Could not reset branding in Firestore:', err);
     });
   };
 
@@ -853,9 +741,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       saveEpcPartnersToSupabase(next).catch((err) => {
         console.warn('Could not sync EPC partners to Supabase:', err);
       });
-      saveEpcConfigToFirestore(next, epcSectionConfig).catch((err) => {
-        console.warn('Could not sync EPC partners to Firestore:', err);
-      });
       return next;
     });
   };
@@ -872,9 +757,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       saveEpcPartnersToSupabase(next).catch((err) => {
         console.warn('Could not sync EPC partners to Supabase:', err);
       });
-      saveEpcConfigToFirestore(next, epcSectionConfig).catch((err) => {
-        console.warn('Could not sync EPC partners to Firestore:', err);
-      });
       return next;
     });
     return newPartner;
@@ -886,9 +768,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       saveEpcPartnersToSupabase(next).catch((err) => {
         console.warn('Could not sync EPC partners to Supabase:', err);
       });
-      saveEpcConfigToFirestore(next, epcSectionConfig).catch((err) => {
-        console.warn('Could not sync EPC partners to Firestore:', err);
-      });
       return next;
     });
   };
@@ -897,9 +776,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setEpcPartners(reordered);
     saveEpcPartnersToSupabase(reordered).catch((err) => {
       console.warn('Could not sync EPC partners to Supabase:', err);
-    });
-    saveEpcConfigToFirestore(reordered, epcSectionConfig).catch((err) => {
-      console.warn('Could not sync EPC partners to Firestore:', err);
     });
   };
 
@@ -915,9 +791,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     saveEpcPartnersToSupabase(INITIAL_STRATEGIC_PARTNERS).catch((err) => {
       console.warn('Could not reset EPC partners in Supabase:', err);
     });
-    saveEpcConfigToFirestore(INITIAL_STRATEGIC_PARTNERS, INITIAL_EPC_CONFIG).catch((err) => {
-      console.warn('Could not reset EPC partners in Firestore:', err);
-    });
   };
 
   const updateEpcSectionConfig = (updated: Partial<EpcSectionConfig>) => {
@@ -925,9 +798,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const next = { ...prev, ...updated };
       saveEpcConfigToSupabase(next).catch((err) => {
         console.warn('Could not sync EPC config to Supabase:', err);
-      });
-      saveEpcConfigToFirestore(epcPartners, next).catch((err) => {
-        console.warn('Could not sync EPC config to Firestore:', err);
       });
       return next;
     });
@@ -939,9 +809,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const next = { ...prev, ...updated };
       saveAboutInfoToSupabase(next).catch((err) => {
         console.warn('Could not sync About info to Supabase:', err);
-      });
-      saveAboutInfoToFirestore(next).catch((err) => {
-        console.warn('Could not sync About info to Firestore:', err);
       });
       return next;
     });
@@ -1063,9 +930,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           saveProjectToSupabase(updatedProj).catch((err) => {
             console.warn('Could not sync project update to Supabase:', err);
           });
-          saveProjectToFirestore(updatedProj).catch((err) => {
-            console.warn('Could not sync project update to Firestore:', err);
-          });
           return updatedProj;
         }
         return p;
@@ -1079,18 +943,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     saveProjectToSupabase(newProject).catch((err) => {
       console.warn('Could not sync new project to Supabase:', err);
     });
-    saveProjectToFirestore(newProject).catch((err) => {
-      console.warn('Could not sync new project to Firestore:', err);
-    });
   };
 
   const deleteProject = (id: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== id));
     deleteProjectFromSupabase(id).catch((err) => {
       console.warn('Could not delete project from Supabase:', err);
-    });
-    deleteProjectFromFirestore(id).catch((err) => {
-      console.warn('Could not delete project from Firestore:', err);
     });
   };
 
@@ -1140,9 +998,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       saveMediaItemToSupabase(newMedia).catch((err) => {
         console.warn('Could not save uploaded media item to Supabase:', err);
       });
-      saveMediaItemToFirestore(newMedia).catch((err) => {
-        console.warn('Could not save uploaded media item to Firestore:', err);
-      });
       return newMedia;
     } catch (err) {
       console.error('Failed to compress and upload image:', err);
@@ -1165,9 +1020,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           saveMediaItemToSupabase(newMedia).catch((saveErr) => {
             console.warn('Could not save uploaded media fallback to Supabase:', saveErr);
           });
-          saveMediaItemToFirestore(newMedia).catch((saveErr) => {
-            console.warn('Could not save uploaded media fallback to Firestore:', saveErr);
-          });
           resolve(newMedia);
         };
         reader.onerror = (e) => reject(e);
@@ -1181,9 +1033,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     saveMediaItemToSupabase(item).catch((err) => {
       console.warn('Could not save media item to Supabase:', err);
     });
-    saveMediaItemToFirestore(item).catch((err) => {
-      console.warn('Could not save media item to Firestore:', err);
-    });
   };
 
   const updateMediaItem = (id: string, updated: Partial<MediaItem>) => {
@@ -1193,9 +1042,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const next = { ...m, ...updated };
           saveMediaItemToSupabase(next).catch((err) => {
             console.warn('Could not update media item in Supabase:', err);
-          });
-          saveMediaItemToFirestore(next).catch((err) => {
-            console.warn('Could not update media item in Firestore:', err);
           });
           return next;
         }
@@ -1218,9 +1064,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           saveMediaItemToSupabase(next).catch((err) => {
             console.warn('Could not sync replaced media item to Supabase:', err);
-          });
-          saveMediaItemToFirestore(next).catch((err) => {
-            console.warn('Could not sync replaced media item to Firestore:', err);
           });
           return next;
         }
@@ -1286,9 +1129,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteMediaItemFromSupabase(id).catch((err) => {
       console.warn('Could not delete media item from Supabase:', err);
     });
-    deleteMediaItemFromFirestore(id).catch((err) => {
-      console.warn('Could not delete media item from Firestore:', err);
-    });
   };
 
   const addConsultationRequest = (request: Omit<ConsultationRequest, 'id' | 'submittedAt'>): ConsultationRequest => {
@@ -1300,9 +1140,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setConsultationRequests((prev) => [newRecord, ...prev]);
     saveConsultationToSupabase(newRecord).catch((err) => {
       console.warn('Could not sync consultation request to Supabase:', err);
-    });
-    saveConsultationToFirestore(newRecord).catch((err) => {
-      console.warn('Could not sync consultation request to Firestore:', err);
     });
     return newRecord;
   };
@@ -1320,9 +1157,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return c;
       });
       return next;
-    });
-    updateConsultationInFirestore(id, { status }).catch((err) => {
-      console.warn('Could not update consultation status in Firestore:', err);
     });
   };
 
