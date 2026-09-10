@@ -35,8 +35,11 @@ import {
   Sparkles,
   Database,
   Video,
-  PhoneCall
+  PhoneCall,
+  Check,
+  Copy
 } from 'lucide-react';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 interface AdminDashboardProps {
   onNavigateTab: (tab: 'knowledge' | 'projects' | 'media' | 'system' | 'branding' | 'epc' | 'about' | 'video' | 'hotline') => void;
@@ -66,6 +69,142 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedConsultation, setSelectedConsultation] = useState<ConsultationRequest | null>(null);
   // Search query for inquiries
   const [inquirySearch, setInquirySearch] = useState('');
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const handleCopySql = () => {
+    const sqlScript = `-- HOKI Supabase Database Schema
+CREATE TABLE IF NOT EXISTS site_branding (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  data JSONB NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  client TEXT NOT NULL,
+  location TEXT NOT NULL,
+  area TEXT NOT NULL,
+  thickness TEXT,
+  dosage TEXT NOT NULL,
+  fiber_type TEXT NOT NULL,
+  sector TEXT NOT NULL,
+  year TEXT NOT NULL,
+  highlight TEXT,
+  challenge TEXT,
+  solution TEXT,
+  results JSONB,
+  engineering_specs JSONB,
+  image TEXT NOT NULL,
+  gallery JSONB,
+  slug TEXT NOT NULL,
+  is_flagship BOOLEAN DEFAULT false,
+  contractor TEXT,
+  concrete_grade TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS articles (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL,
+  read_time TEXT NOT NULL,
+  publish_date TEXT NOT NULL,
+  author JSONB NOT NULL,
+  abstract TEXT NOT NULL,
+  key_findings JSONB,
+  methodology TEXT,
+  full_content TEXT,
+  image TEXT NOT NULL,
+  gallery JSONB,
+  standards JSONB,
+  is_flagship BOOLEAN DEFAULT false,
+  slug TEXT NOT NULL,
+  views INTEGER DEFAULT 0,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS consultations (
+  id TEXT PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  company TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  project_type TEXT NOT NULL,
+  estimated_area TEXT NOT NULL,
+  target_pour_date TEXT,
+  notes TEXT,
+  status TEXT DEFAULT 'new' NOT NULL,
+  submitted_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS media_items (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  size TEXT NOT NULL,
+  dimensions TEXT NOT NULL,
+  uploaded_at TEXT NOT NULL,
+  category TEXT NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS epc_partners (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  subtitle TEXT NOT NULL,
+  logo_url TEXT,
+  website TEXT,
+  sort_order INTEGER DEFAULT 0,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS about_info (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  data JSONB NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE site_branding ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE consultations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE media_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE epc_partners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE about_info ENABLE ROW LEVEL SECURITY;
+
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'site_branding' AND policyname = 'Public Access site_branding') THEN
+    CREATE POLICY "Public Access site_branding" ON site_branding FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'projects' AND policyname = 'Public Access projects') THEN
+    CREATE POLICY "Public Access projects" ON projects FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'articles' AND policyname = 'Public Access articles') THEN
+    CREATE POLICY "Public Access articles" ON articles FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'consultations' AND policyname = 'Public Access consultations') THEN
+    CREATE POLICY "Public Access consultations" ON consultations FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'media_items' AND policyname = 'Public Access media_items') THEN
+    CREATE POLICY "Public Access media_items" ON media_items FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'epc_partners' AND policyname = 'Public Access epc_partners') THEN
+    CREATE POLICY "Public Access epc_partners" ON epc_partners FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'about_info' AND policyname = 'Public Access about_info') THEN
+    CREATE POLICY "Public Access about_info" ON about_info FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+ALTER PUBLICATION supabase_realtime ADD TABLE site_branding, projects, articles, consultations, media_items, epc_partners, about_info;`;
+
+    navigator.clipboard.writeText(sqlScript);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 3000);
+  };
 
   // 1. KPI SUMMARY CALCULATIONS
   const totalProjectsCount = projects.length;
@@ -244,6 +383,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {/* Centralized Cloud Database Status Banner */}
+      <div className="p-5 rounded-3xl bg-white border border-[#e5e9ee] shadow-bubble flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-bubble-inset ${
+            isSupabaseConfigured ? 'bg-[#006e21]/10 text-[#006e21]' : 'bg-[#00356a]/10 text-[#00356a]'
+          }`}>
+            <Database className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-extrabold text-[#00356a]">
+                Centralized Cloud Database
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                isSupabaseConfigured 
+                  ? 'bg-[#006e21]/15 text-[#006e21] border border-[#006e21]/30'
+                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              }`}>
+                <span className={`w-2 h-2 rounded-full animate-pulse ${
+                  isSupabaseConfigured ? 'bg-[#006e21]' : 'bg-emerald-600'
+                }`} />
+                {isSupabaseConfigured ? 'Supabase Real-Time Connected' : 'Supabase Client Ready (Dual-Layer Sync)'}
+              </span>
+            </div>
+            <p className="text-xs text-[#00356a]/70 mt-0.5">
+              Cross-browser real-time synchronization active. Admin changes automatically update all users across Firefox, Coc Coc, Chrome, and private tabs.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={handleCopySql}
+            className="px-4 py-2.5 rounded-xl bg-[#f4f6f8] hover:bg-[#e9edf1] text-[#00356a] border border-[#dce0e6] text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-bubble-sm"
+          >
+            {copiedSql ? <Check className="w-4 h-4 text-[#006e21]" /> : <Copy className="w-4 h-4" />}
+            <span>{copiedSql ? 'SQL Script Copied!' : 'Copy Supabase SQL'}</span>
+          </button>
+
+          <button
+            onClick={() => onNavigateTab('system')}
+            className="px-4 py-2.5 rounded-xl bg-[#00356a] hover:bg-[#002a54] text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-bubble-sm"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Database Config</span>
+          </button>
+        </div>
+      </div>
+
       {/* 1. TOP SUMMARY METRIC CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Card 1: Total Projects */}
