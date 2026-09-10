@@ -13,6 +13,7 @@ import { SeoHead } from './components/SeoHead';
 import { useData } from './context/DataContext';
 import { getRouteFromPath, getPathForRoute, getProjectSlugFromPath } from './utils/router';
 import { ArrowUp, Lock, ShieldCheck } from 'lucide-react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 // Lazy-loaded page components for lightweight page chunks and optimized loading performance
 const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
@@ -267,6 +268,9 @@ export default function App() {
           <ArrowUp className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" />
         </button>
       )}
+
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
     </div>
   );
 }
