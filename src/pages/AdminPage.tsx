@@ -10,6 +10,7 @@ import { AdminAboutSection } from '../components/AdminAboutSection';
 import { AdminBackupModal } from '../components/AdminBackupModal';
 import { AdminYouTubeSection } from '../components/AdminYouTubeSection';
 import { AdminHotlineSocialSection } from '../components/AdminHotlineSocialSection';
+import { AdminSupabaseConfigSection } from '../components/AdminSupabaseConfigSection';
 import {
   ShieldCheck,
   BookOpen,
@@ -1385,6 +1386,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         {/* TAB 4: SYSTEM STATUS & BACKUP */}
         {activeTab === 'system' && (
           <div className="space-y-6">
+            {/* Supabase Cloud Connection & API Keys Configuration Card */}
+            <AdminSupabaseConfigSection onShowToast={showToast} />
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white rounded-3xl p-6 shadow-bubble border border-[#e5e9ee]">
                 <div className="w-10 h-10 rounded-full bg-[#00356a]/10 text-[#00356a] flex items-center justify-center mb-3">
