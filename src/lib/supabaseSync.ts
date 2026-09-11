@@ -10,6 +10,50 @@ import {
   EpcSectionConfig
 } from '../types';
 
+/**
+ * Universal document store upsert helper.
+ * Attempts to upsert the rich document payload (both structured columns + JSON data column).
+ * If structured columns fail due to schema mismatch, fallbacks gracefully to { id, data, updated_at }.
+ */
+async function upsertDocument<T extends Record<string, any>>(
+  tableName: string,
+  primaryPayload: Record<string, any>,
+  itemData: T,
+  id: string = 'default'
+): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+
+  const docPayload = {
+    id: id || (itemData as any).id || `doc-${Date.now()}`,
+    data: itemData,
+    ...primaryPayload,
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    const { error } = await supabase.from(tableName).upsert(docPayload);
+    if (!error) return true;
+
+    console.warn(`Primary upsert to "${tableName}" failed (${error.message}). Attempting flexible document fallback...`);
+    // Fallback to pure document store format
+    const fallbackPayload = {
+      id: docPayload.id,
+      data: itemData,
+      updated_at: new Date().toISOString()
+    };
+    const { error: fallbackError } = await supabase.from(tableName).upsert(fallbackPayload);
+    if (fallbackError) {
+      console.error(`Fallback upsert to "${tableName}" error:`, fallbackError.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`Exception during upsert to "${tableName}":`, err);
+    return false;
+  }
+}
+
 // =========================================================================
 // 1. SITE BRANDING (Hotline, Social Links, Hero Image, Video, Logos)
 // =========================================================================
@@ -31,7 +75,7 @@ export async function fetchBrandingFromSupabase(): Promise<SiteBranding | null> 
     }
     if (!data) return null;
 
-    return mapRowToBranding(data);
+    return unpackBranding(data);
   } catch (err) {
     console.warn('Supabase fetchBranding exception:', err);
     return null;
@@ -39,24 +83,8 @@ export async function fetchBrandingFromSupabase(): Promise<SiteBranding | null> 
 }
 
 export async function saveBrandingToSupabase(branding: Partial<SiteBranding>): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
-
-  try {
-    const row = mapBrandingToRow(branding);
-    const { error } = await supabase
-      .from('site_branding')
-      .upsert({ id: 'default', ...row, updated_at: new Date().toISOString() });
-
-    if (error) {
-      console.error('Supabase saveBranding error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('Supabase saveBranding exception:', err);
-    return false;
-  }
+  const row = mapBrandingToRow(branding);
+  return upsertDocument('site_branding', row, branding, 'default');
 }
 
 export function subscribeToBrandingRealtime(onUpdate: (branding: SiteBranding) => void) {
@@ -70,7 +98,7 @@ export function subscribeToBrandingRealtime(onUpdate: (branding: SiteBranding) =
       { event: '*', schema: 'public', table: 'site_branding' },
       (payload) => {
         if (payload.new && typeof payload.new === 'object') {
-          onUpdate(mapRowToBranding(payload.new));
+          onUpdate(unpackBranding(payload.new));
         }
       }
     )
@@ -79,6 +107,20 @@ export function subscribeToBrandingRealtime(onUpdate: (branding: SiteBranding) =
   return () => {
     supabase.removeChannel(channel);
   };
+}
+
+function unpackBranding(row: any): SiteBranding {
+  const legacy = mapRowToBranding(row);
+  if (row.data && typeof row.data === 'object' && Object.keys(row.data).length > 0) {
+    return {
+      ...legacy,
+      ...row.data,
+      socialLinks: row.data.socialLinks || legacy.socialLinks,
+      aboutLeadershipAvatars: row.data.aboutLeadershipAvatars || legacy.aboutLeadershipAvatars,
+      aboutAdvisoryAvatars: row.data.aboutAdvisoryAvatars || legacy.aboutAdvisoryAvatars
+    };
+  }
+  return legacy;
 }
 
 function mapRowToBranding(row: any): SiteBranding {
@@ -155,7 +197,7 @@ export async function fetchProjectsFromSupabase(): Promise<ProjectCaseStudy[] | 
       console.warn('Supabase fetchProjects error:', error.message);
       return null;
     }
-    return (data || []).map(mapRowToProject);
+    return (data || []).map(unpackProject);
   } catch (err) {
     console.warn('Supabase fetchProjects exception:', err);
     return null;
@@ -163,21 +205,8 @@ export async function fetchProjectsFromSupabase(): Promise<ProjectCaseStudy[] | 
 }
 
 export async function saveProjectToSupabase(project: ProjectCaseStudy): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
-
-  try {
-    const row = mapProjectToRow(project);
-    const { error } = await supabase.from('projects').upsert(row);
-    if (error) {
-      console.error('Supabase saveProject error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('Supabase saveProject exception:', err);
-    return false;
-  }
+  const row = mapProjectToRow(project);
+  return upsertDocument('projects', row, project, project.id);
 }
 
 export async function deleteProjectFromSupabase(id: string): Promise<boolean> {
@@ -216,6 +245,23 @@ export function subscribeToProjectsRealtime(onUpdate: (projects: ProjectCaseStud
   return () => {
     supabase.removeChannel(channel);
   };
+}
+
+function unpackProject(row: any): ProjectCaseStudy {
+  const legacy = mapRowToProject(row);
+  if (row.data && typeof row.data === 'object' && Object.keys(row.data).length > 0) {
+    return {
+      ...legacy,
+      ...row.data,
+      id: row.id || row.data.id,
+      slug: row.data.slug || row.slug || legacy.slug,
+      title: row.data.title || row.title || legacy.title,
+      gallery: Array.isArray(row.data.gallery) ? row.data.gallery : legacy.gallery,
+      metrics: Array.isArray(row.data.metrics) ? row.data.metrics : legacy.metrics,
+      specifications: row.data.specifications || legacy.specifications
+    };
+  }
+  return legacy;
 }
 
 function mapRowToProject(row: any): ProjectCaseStudy {
@@ -276,6 +322,7 @@ function mapProjectToRow(p: ProjectCaseStudy): any {
     quote_author: p.quoteAuthor,
     drawings_available: p.drawingsAvailable !== false,
     drone_video_available: p.droneVideoAvailable || false,
+    created_at: (p as any).created_at || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
 }
@@ -298,7 +345,7 @@ export async function fetchArticlesFromSupabase(): Promise<JournalArticle[] | nu
       console.warn('Supabase fetchArticles error:', error.message);
       return null;
     }
-    return (data || []).map(mapRowToArticle);
+    return (data || []).map(unpackArticle);
   } catch (err) {
     console.warn('Supabase fetchArticles exception:', err);
     return null;
@@ -306,21 +353,8 @@ export async function fetchArticlesFromSupabase(): Promise<JournalArticle[] | nu
 }
 
 export async function saveArticleToSupabase(article: JournalArticle): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
-
-  try {
-    const row = mapArticleToRow(article);
-    const { error } = await supabase.from('articles').upsert(row);
-    if (error) {
-      console.error('Supabase saveArticle error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('Supabase saveArticle exception:', err);
-    return false;
-  }
+  const row = mapArticleToRow(article);
+  return upsertDocument('articles', row, article, article.id);
 }
 
 export async function deleteArticleFromSupabase(id: string): Promise<boolean> {
@@ -361,6 +395,21 @@ export function subscribeToArticlesRealtime(onUpdate: (articles: JournalArticle[
   };
 }
 
+function unpackArticle(row: any): JournalArticle {
+  const legacy = mapRowToArticle(row);
+  if (row.data && typeof row.data === 'object' && Object.keys(row.data).length > 0) {
+    return {
+      ...legacy,
+      ...row.data,
+      id: row.id || row.data.id,
+      title: row.data.title || row.title || legacy.title,
+      gallery: Array.isArray(row.data.gallery) ? row.data.gallery : legacy.gallery,
+      fullContent: Array.isArray(row.data.fullContent) ? row.data.fullContent : legacy.fullContent
+    };
+  }
+  return legacy;
+}
+
 function mapRowToArticle(row: any): JournalArticle {
   return {
     id: row.id,
@@ -396,6 +445,7 @@ function mapArticleToRow(a: JournalArticle): any {
     is_flagship: a.isFlagship || false,
     content_snippet: a.contentSnippet,
     full_content: a.fullContent || [],
+    created_at: (a as any).created_at || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
 }
@@ -415,10 +465,19 @@ export async function fetchConsultationsFromSupabase(): Promise<ConsultationRequ
       .order('submitted_at', { ascending: false });
 
     if (error) {
-      console.warn('Supabase fetchConsultations error:', error.message);
-      return null;
+      // Compatibility query on fallback table 'consultations'
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('consultations')
+        .select('*')
+        .order('submitted_at', { ascending: false });
+
+      if (fallbackError) {
+        console.warn('Supabase fetchConsultations error:', error.message);
+        return null;
+      }
+      return (fallbackData || []).map(unpackConsultation);
     }
-    return (data || []).map(mapRowToConsultation);
+    return (data || []).map(unpackConsultation);
   } catch (err) {
     console.warn('Supabase fetchConsultations exception:', err);
     return null;
@@ -426,21 +485,13 @@ export async function fetchConsultationsFromSupabase(): Promise<ConsultationRequ
 }
 
 export async function saveConsultationToSupabase(req: ConsultationRequest): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
-
-  try {
-    const row = mapConsultationToRow(req);
-    const { error } = await supabase.from('consultation_requests').upsert(row);
-    if (error) {
-      console.error('Supabase saveConsultation error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('Supabase saveConsultation exception:', err);
-    return false;
+  const row = mapConsultationToRow(req);
+  const success = await upsertDocument('consultation_requests', row, req, req.id);
+  if (!success) {
+    // Attempt fallback to alias table 'consultations'
+    return upsertDocument('consultations', row, req, req.id);
   }
+  return true;
 }
 
 export async function deleteConsultationFromSupabase(id: string): Promise<boolean> {
@@ -450,8 +501,11 @@ export async function deleteConsultationFromSupabase(id: string): Promise<boolea
   try {
     const { error } = await supabase.from('consultation_requests').delete().eq('id', id);
     if (error) {
-      console.error('Supabase deleteConsultation error:', error.message);
-      return false;
+      const { error: fallbackError } = await supabase.from('consultations').delete().eq('id', id);
+      if (fallbackError) {
+        console.error('Supabase deleteConsultation error:', error.message);
+        return false;
+      }
     }
     return true;
   } catch (err) {
@@ -481,6 +535,22 @@ export function subscribeToConsultationsRealtime(onUpdate: (reqs: ConsultationRe
   };
 }
 
+function unpackConsultation(row: any): ConsultationRequest {
+  const legacy = mapRowToConsultation(row);
+  if (row.data && typeof row.data === 'object' && Object.keys(row.data).length > 0) {
+    return {
+      ...legacy,
+      ...row.data,
+      id: row.id || row.data.id,
+      name: row.data.name || row.name || legacy.name,
+      firm: row.data.firm || row.firm || legacy.firm,
+      email: row.data.email || row.email || legacy.email,
+      status: row.data.status || row.status || legacy.status
+    };
+  }
+  return legacy;
+}
+
 function mapRowToConsultation(row: any): ConsultationRequest {
   return {
     id: row.id,
@@ -507,9 +577,11 @@ function mapConsultationToRow(req: ConsultationRequest): any {
     project_type: req.projectType,
     slab_area: req.slabArea,
     target_date: req.targetDate,
-    submitted_at: req.submittedAt,
+    submitted_at: req.submittedAt || new Date().toISOString(),
     notes: req.notes,
-    status: req.status
+    status: req.status || 'new',
+    created_at: (req as any).created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString()
   };
 }
 
@@ -517,10 +589,6 @@ function mapConsultationToRow(req: ConsultationRequest): any {
 // 5. MEDIA ASSET ITEMS & SUPABASE STORAGE ('media' Bucket)
 // =========================================================================
 
-/**
- * Direct file upload to Supabase Storage 'media' bucket.
- * Returns publicUrl, storagePath, and formatted size.
- */
 export async function uploadFileToSupabaseStorage(
   file: File,
   bucketName: string = 'media',
@@ -573,9 +641,6 @@ export async function uploadFileToSupabaseStorage(
   }
 }
 
-/**
- * List files directly from Supabase Storage 'media' bucket.
- */
 export async function listStorageFiles(
   folder: string = '',
   bucketName: string = 'media'
@@ -613,9 +678,6 @@ export async function listStorageFiles(
   }
 }
 
-/**
- * Delete a file directly from Supabase Storage bucket.
- */
 export async function deleteFileFromSupabaseStorage(
   filePath: string,
   bucketName: string = 'media'
@@ -650,15 +712,7 @@ export async function fetchMediaItemsFromSupabase(): Promise<MediaItem[] | null>
       console.warn('Supabase fetchMediaItems error:', error.message);
       return null;
     }
-    return (data || []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      url: row.url,
-      size: row.size,
-      uploadedAt: row.uploaded_at,
-      category: row.category || 'general',
-      dimensions: row.dimensions
-    }));
+    return (data || []).map(unpackMediaItem);
   } catch (err) {
     console.warn('Supabase fetchMediaItems exception:', err);
     return null;
@@ -666,29 +720,16 @@ export async function fetchMediaItemsFromSupabase(): Promise<MediaItem[] | null>
 }
 
 export async function saveMediaItemToSupabase(item: MediaItem): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
-
-  try {
-    const { error } = await supabase.from('media_items').upsert({
-      id: item.id,
-      name: item.name,
-      url: item.url,
-      size: item.size,
-      uploaded_at: item.uploadedAt,
-      category: item.category || 'general',
-      dimensions: item.dimensions
-    });
-
-    if (error) {
-      console.error('Supabase saveMediaItem error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('Supabase saveMediaItem exception:', err);
-    return false;
-  }
+  const row = {
+    id: item.id,
+    name: item.name,
+    url: item.url,
+    size: item.size,
+    uploaded_at: item.uploadedAt,
+    category: item.category || 'general',
+    dimensions: item.dimensions
+  };
+  return upsertDocument('media_items', row, item, item.id);
 }
 
 export async function deleteMediaItemFromSupabase(id: string): Promise<boolean> {
@@ -729,6 +770,28 @@ export function subscribeToMediaRealtime(onUpdate: (items: MediaItem[]) => void)
   };
 }
 
+function unpackMediaItem(row: any): MediaItem {
+  const legacy: MediaItem = {
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    size: row.size,
+    uploadedAt: row.uploaded_at || row.uploadedAt || new Date().toISOString(),
+    category: row.category || 'general',
+    dimensions: row.dimensions
+  };
+  if (row.data && typeof row.data === 'object' && Object.keys(row.data).length > 0) {
+    return {
+      ...legacy,
+      ...row.data,
+      id: row.id || row.data.id,
+      name: row.data.name || row.name || legacy.name,
+      url: row.data.url || row.url || legacy.url
+    };
+  }
+  return legacy;
+}
+
 // =========================================================================
 // 6. EPC STRATEGIC PARTNERS (Main Page Ticker)
 // =========================================================================
@@ -747,15 +810,7 @@ export async function fetchEpcPartnersFromSupabase(): Promise<StrategicPartner[]
       console.warn('Supabase fetchEpcPartners error:', error.message);
       return null;
     }
-    return (data || []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      subtitle: row.subtitle || row.role || '',
-      role: row.role || row.subtitle || '',
-      origin: row.origin,
-      logoUrl: row.logo_url,
-      websiteUrl: row.website_url
-    }));
+    return (data || []).map(unpackEpcPartner);
   } catch (err) {
     console.warn('Supabase fetchEpcPartners exception:', err);
     return null;
@@ -769,19 +824,32 @@ export async function saveEpcPartnersToSupabase(partners: StrategicPartner[]): P
   try {
     const rows = partners.map((p, idx) => ({
       id: p.id,
+      data: p,
       name: p.name,
       subtitle: p.subtitle || p.role || '',
       role: p.role || p.subtitle || '',
       origin: p.origin || '',
       logo_url: p.logoUrl || '',
       website_url: p.websiteUrl || '',
-      order_index: idx
+      order_index: idx,
+      created_at: (p as any).created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }));
 
     const { error } = await supabase.from('epc_partners').upsert(rows);
     if (error) {
-      console.error('Supabase saveEpcPartners error:', error.message);
-      return false;
+      console.warn('Primary upsert to "epc_partners" failed. Trying document fallback...', error.message);
+      const fallbackRows = partners.map((p, idx) => ({
+        id: p.id,
+        data: p,
+        order_index: idx,
+        updated_at: new Date().toISOString()
+      }));
+      const { error: fallbackError } = await supabase.from('epc_partners').upsert(fallbackRows);
+      if (fallbackError) {
+        console.error('Supabase saveEpcPartners fallback error:', fallbackError.message);
+        return false;
+      }
     }
     return true;
   } catch (err) {
@@ -811,6 +879,28 @@ export function subscribeToEpcPartnersRealtime(onUpdate: (partners: StrategicPar
   };
 }
 
+function unpackEpcPartner(row: any): StrategicPartner {
+  const legacy: StrategicPartner = {
+    id: row.id,
+    name: row.name,
+    subtitle: row.subtitle || row.role || '',
+    role: row.role || row.subtitle || '',
+    origin: row.origin,
+    logoUrl: row.logo_url,
+    websiteUrl: row.website_url
+  };
+  if (row.data && typeof row.data === 'object' && Object.keys(row.data).length > 0) {
+    return {
+      ...legacy,
+      ...row.data,
+      id: row.id || row.data.id,
+      name: row.data.name || row.name || legacy.name,
+      logoUrl: row.data.logoUrl || row.logo_url || legacy.logoUrl
+    };
+  }
+  return legacy;
+}
+
 // =========================================================================
 // 7. ABOUT US PAGE INFO & EPC SECTION CONFIG
 // =========================================================================
@@ -828,18 +918,7 @@ export async function fetchAboutInfoFromSupabase(): Promise<AboutPageInfo | null
 
     if (error || !data) return null;
 
-    return {
-      title: data.title,
-      tagline: data.tagline,
-      description: data.description,
-      missionLabel: data.mission_label,
-      missionQuote: data.mission_quote,
-      missionAuthor: data.mission_author,
-      leadershipHeading: data.leadership_heading,
-      leadershipSubheading: data.leadership_subheading,
-      advisoryHeading: data.advisory_heading,
-      advisorySubheading: data.advisory_subheading
-    };
+    return unpackAboutInfo(data);
   } catch (err) {
     console.warn('Supabase fetchAboutInfo exception:', err);
     return null;
@@ -847,34 +926,38 @@ export async function fetchAboutInfoFromSupabase(): Promise<AboutPageInfo | null
 }
 
 export async function saveAboutInfoToSupabase(info: AboutPageInfo): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
+  const row = {
+    title: info.title,
+    tagline: info.tagline,
+    description: info.description,
+    mission_label: info.missionLabel,
+    mission_quote: info.missionQuote,
+    mission_author: info.missionAuthor,
+    leadership_heading: info.leadershipHeading,
+    leadership_subheading: info.leadershipSubheading,
+    advisory_heading: info.advisoryHeading,
+    advisory_subheading: info.advisorySubheading
+  };
+  return upsertDocument('about_page_info', row, info, 'default');
+}
 
-  try {
-    const { error } = await supabase.from('about_page_info').upsert({
-      id: 'default',
-      title: info.title,
-      tagline: info.tagline,
-      description: info.description,
-      mission_label: info.missionLabel,
-      mission_quote: info.missionQuote,
-      mission_author: info.missionAuthor,
-      leadership_heading: info.leadershipHeading,
-      leadership_subheading: info.leadershipSubheading,
-      advisory_heading: info.advisoryHeading,
-      advisory_subheading: info.advisorySubheading,
-      updated_at: new Date().toISOString()
-    });
-
-    if (error) {
-      console.error('Supabase saveAboutInfo error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('Supabase saveAboutInfo exception:', err);
-    return false;
+function unpackAboutInfo(data: any): AboutPageInfo {
+  const legacy: AboutPageInfo = {
+    title: data.title,
+    tagline: data.tagline,
+    description: data.description,
+    missionLabel: data.mission_label,
+    missionQuote: data.mission_quote,
+    missionAuthor: data.mission_author,
+    leadershipHeading: data.leadership_heading,
+    leadershipSubheading: data.leadership_subheading,
+    advisoryHeading: data.advisory_heading,
+    advisorySubheading: data.advisory_subheading
+  };
+  if (data.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
+    return { ...legacy, ...data.data };
   }
+  return legacy;
 }
 
 export async function fetchEpcConfigFromSupabase(): Promise<EpcSectionConfig | null> {
@@ -890,10 +973,7 @@ export async function fetchEpcConfigFromSupabase(): Promise<EpcSectionConfig | n
 
     if (error || !data) return null;
 
-    return {
-      title: data.title,
-      subtitle: data.subtitle
-    };
+    return unpackEpcConfig(data);
   } catch (err) {
     console.warn('Supabase fetchEpcConfig exception:', err);
     return null;
@@ -901,24 +981,20 @@ export async function fetchEpcConfigFromSupabase(): Promise<EpcSectionConfig | n
 }
 
 export async function saveEpcConfigToSupabase(config: EpcSectionConfig): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
+  const row = {
+    title: config.title,
+    subtitle: config.subtitle
+  };
+  return upsertDocument('epc_section_config', row, config, 'default');
+}
 
-  try {
-    const { error } = await supabase.from('epc_section_config').upsert({
-      id: 'default',
-      title: config.title,
-      subtitle: config.subtitle,
-      updated_at: new Date().toISOString()
-    });
-
-    if (error) {
-      console.error('Supabase saveEpcConfig error:', error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('Supabase saveEpcConfig exception:', err);
-    return false;
+function unpackEpcConfig(data: any): EpcSectionConfig {
+  const legacy: EpcSectionConfig = {
+    title: data.title,
+    subtitle: data.subtitle
+  };
+  if (data.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
+    return { ...legacy, ...data.data };
   }
+  return legacy;
 }

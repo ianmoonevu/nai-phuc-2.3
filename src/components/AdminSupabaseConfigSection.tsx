@@ -123,6 +123,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. TABLE: site_branding
 CREATE TABLE IF NOT EXISTS public.site_branding (
   id TEXT PRIMARY KEY DEFAULT 'default',
+  data JSONB DEFAULT '{}'::jsonb,
   brand_name TEXT NOT NULL DEFAULT 'HOKI',
   tagline TEXT NOT NULL DEFAULT 'Innovative and Sustainable',
   header_logo_url TEXT,
@@ -151,6 +152,7 @@ CREATE TABLE IF NOT EXISTS public.site_branding (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS about_advisory_avatars JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS about_leadership_avatars JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
@@ -158,6 +160,7 @@ ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
 -- 2. TABLE: projects
 CREATE TABLE IF NOT EXISTS public.projects (
   id TEXT PRIMARY KEY,
+  data JSONB DEFAULT '{}'::jsonb,
   code TEXT,
   slug TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
@@ -185,12 +188,14 @@ CREATE TABLE IF NOT EXISTS public.projects (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
 ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
 
 -- 3. TABLE: articles
 CREATE TABLE IF NOT EXISTS public.articles (
   id TEXT PRIMARY KEY,
+  data JSONB DEFAULT '{}'::jsonb,
   title TEXT NOT NULL,
   subtitle TEXT,
   category TEXT,
@@ -209,12 +214,14 @@ CREATE TABLE IF NOT EXISTS public.articles (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
 
 -- 4. TABLE: consultation_requests & consultations
 CREATE TABLE IF NOT EXISTS public.consultation_requests (
   id TEXT PRIMARY KEY,
+  data JSONB DEFAULT '{}'::jsonb,
   name TEXT NOT NULL,
   firm TEXT NOT NULL,
   email TEXT NOT NULL,
@@ -231,6 +238,7 @@ CREATE TABLE IF NOT EXISTS public.consultation_requests (
 
 CREATE TABLE IF NOT EXISTS public.consultations (
   id TEXT PRIMARY KEY,
+  data JSONB DEFAULT '{}'::jsonb,
   name TEXT NOT NULL,
   firm TEXT NOT NULL,
   email TEXT NOT NULL,
@@ -245,21 +253,29 @@ CREATE TABLE IF NOT EXISTS public.consultations (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.consultations ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+
 -- 5. TABLE: media_items
 CREATE TABLE IF NOT EXISTS public.media_items (
   id TEXT PRIMARY KEY,
+  data JSONB DEFAULT '{}'::jsonb,
   name TEXT NOT NULL,
   url TEXT NOT NULL,
   size TEXT,
   uploaded_at TEXT,
   category TEXT DEFAULT 'general',
   dimensions TEXT,
-  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 
 -- 6. TABLE: epc_partners
 CREATE TABLE IF NOT EXISTS public.epc_partners (
   id TEXT PRIMARY KEY,
+  data JSONB DEFAULT '{}'::jsonb,
   name TEXT NOT NULL,
   subtitle TEXT,
   role TEXT,
@@ -273,6 +289,7 @@ CREATE TABLE IF NOT EXISTS public.epc_partners (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0;
 ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
 ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
@@ -281,6 +298,7 @@ ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ 
 -- 7. TABLE: about_page_info & about_info
 CREATE TABLE IF NOT EXISTS public.about_page_info (
   id TEXT PRIMARY KEY DEFAULT 'default',
+  data JSONB DEFAULT '{}'::jsonb,
   title TEXT,
   tagline TEXT,
   description TEXT,
@@ -294,6 +312,8 @@ CREATE TABLE IF NOT EXISTS public.about_page_info (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.about_page_info ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+
 CREATE TABLE IF NOT EXISTS public.about_info (
   id TEXT PRIMARY KEY DEFAULT 'default',
   data JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -303,10 +323,13 @@ CREATE TABLE IF NOT EXISTS public.about_info (
 -- 8. TABLE: epc_section_config
 CREATE TABLE IF NOT EXISTS public.epc_section_config (
   id TEXT PRIMARY KEY DEFAULT 'default',
+  data JSONB DEFAULT '{}'::jsonb,
   title TEXT,
   subtitle TEXT,
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE public.epc_section_config ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.site_branding ENABLE ROW LEVEL SECURITY;

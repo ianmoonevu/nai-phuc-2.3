@@ -2,8 +2,8 @@
 -- HOKI GREEN ENGINEERING PLATFORM — SUPABASE POSTGRESQL SCHEMA SCRIPT
 -- =========================================================================
 -- Execute this entire script directly in the Supabase Dashboard -> SQL Editor.
--- This script creates all tables, idempotent column migrations, RLS policies,
--- Realtime publications, and default initial seed data.
+-- This script creates all tables with flexible document store (data JSONB) columns,
+-- idempotent column migrations, RLS policies, Realtime publications, and initial seed data.
 -- =========================================================================
 
 -- Enable UUID extension
@@ -14,6 +14,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.site_branding (
     id TEXT PRIMARY KEY DEFAULT 'default',
+    data JSONB DEFAULT '{}'::jsonb,
     brand_name TEXT NOT NULL DEFAULT 'HOKI',
     tagline TEXT NOT NULL DEFAULT 'Innovative and Sustainable',
     header_logo_url TEXT,
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS public.site_branding (
 );
 
 -- Idempotent column check for site_branding
+ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS brand_name TEXT NOT NULL DEFAULT 'HOKI';
 ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS tagline TEXT NOT NULL DEFAULT 'Innovative and Sustainable';
 ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS header_logo_url TEXT;
@@ -90,6 +92,7 @@ ALTER TABLE public.site_branding ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.projects (
     id TEXT PRIMARY KEY,
+    data JSONB DEFAULT '{}'::jsonb,
     slug TEXT NOT NULL,
     code TEXT,
     title TEXT NOT NULL,
@@ -123,6 +126,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
 );
 
 -- Idempotent column check for projects
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS slug TEXT;
 ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS code TEXT;
 ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS title TEXT;
@@ -154,6 +158,7 @@ ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFA
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.articles (
     id TEXT PRIMARY KEY,
+    data JSONB DEFAULT '{}'::jsonb,
     title TEXT NOT NULL,
     subtitle TEXT,
     category TEXT,
@@ -173,6 +178,7 @@ CREATE TABLE IF NOT EXISTS public.articles (
 );
 
 -- Idempotent column check for articles
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS title TEXT;
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS subtitle TEXT;
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS category TEXT;
@@ -195,6 +201,7 @@ ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFA
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.consultation_requests (
     id TEXT PRIMARY KEY,
+    data JSONB DEFAULT '{}'::jsonb,
     name TEXT NOT NULL,
     firm TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -210,6 +217,7 @@ CREATE TABLE IF NOT EXISTS public.consultation_requests (
 );
 
 -- Idempotent column check for consultation_requests
+ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS firm TEXT;
 ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS email TEXT;
@@ -226,6 +234,7 @@ ALTER TABLE public.consultation_requests ADD COLUMN IF NOT EXISTS updated_at TIM
 -- Compatibility table/alias: consultations
 CREATE TABLE IF NOT EXISTS public.consultations (
     id TEXT PRIMARY KEY,
+    data JSONB DEFAULT '{}'::jsonb,
     name TEXT NOT NULL,
     firm TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -239,21 +248,25 @@ CREATE TABLE IF NOT EXISTS public.consultations (
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
+ALTER TABLE public.consultations ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 
 -- -------------------------------------------------------------------------
 -- 5. TABLE: media_items (Centralized Media Asset Library)
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.media_items (
     id TEXT PRIMARY KEY,
+    data JSONB DEFAULT '{}'::jsonb,
     name TEXT NOT NULL,
     url TEXT NOT NULL,
     size TEXT,
     uploaded_at TEXT,
     category TEXT DEFAULT 'general',
     dimensions TEXT,
-    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS url TEXT;
 ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS size TEXT;
@@ -261,12 +274,14 @@ ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS uploaded_at TEXT;
 ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general';
 ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS dimensions TEXT;
 ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.media_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
 
 -- -------------------------------------------------------------------------
 -- 6. TABLE: epc_partners (Strategic EPC Contractor Ticker)
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.epc_partners (
     id TEXT PRIMARY KEY,
+    data JSONB DEFAULT '{}'::jsonb,
     name TEXT NOT NULL,
     subtitle TEXT,
     role TEXT,
@@ -281,6 +296,7 @@ CREATE TABLE IF NOT EXISTS public.epc_partners (
 );
 
 -- Idempotent column check for epc_partners
+ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS subtitle TEXT;
 ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS role TEXT;
@@ -298,6 +314,7 @@ ALTER TABLE public.epc_partners ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ 
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.about_page_info (
     id TEXT PRIMARY KEY DEFAULT 'default',
+    data JSONB DEFAULT '{}'::jsonb,
     title TEXT DEFAULT 'Engineering Tomorrow’s Concrete Infrastructure with Micro-Scale Metallurgy',
     tagline TEXT DEFAULT 'Pioneering net-zero steel fiber reinforcement across APAC and global civil infrastructure since 2021.',
     description TEXT DEFAULT 'HOKI is a precision manufacturing and structural engineering enterprise dedicated to eliminating traditional rebar and welded wire mesh in concrete slabs, tunneling shotcrete, and precast civil segments.',
@@ -311,6 +328,8 @@ CREATE TABLE IF NOT EXISTS public.about_page_info (
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.about_page_info ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
+
 CREATE TABLE IF NOT EXISTS public.about_info (
     id TEXT PRIMARY KEY DEFAULT 'default',
     data JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -322,10 +341,13 @@ CREATE TABLE IF NOT EXISTS public.about_info (
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.epc_section_config (
     id TEXT PRIMARY KEY DEFAULT 'default',
+    data JSONB DEFAULT '{}'::jsonb,
     title TEXT DEFAULT 'Trusted by Leading Civil General Contractors & Flooring EPCs',
     subtitle TEXT DEFAULT 'Displacing welded wire mesh across 1,000,000+ m² of heavy industrial floors and logistics hubs.',
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE public.epc_section_config ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 
 -- =========================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -480,4 +502,3 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.about_page_info (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.about_info (id, data) VALUES ('default', '{}'::jsonb) ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.epc_section_config (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;
-
