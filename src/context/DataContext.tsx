@@ -49,7 +49,8 @@ import {
   fetchAboutInfoFromSupabase,
   saveAboutInfoToSupabase,
   fetchEpcConfigFromSupabase,
-  saveEpcConfigToSupabase
+  saveEpcConfigToSupabase,
+  uploadFileToSupabaseStorage
 } from '../lib/supabaseSync';
 
 const INITIAL_CONSULTATIONS: ConsultationRequest[] = [
@@ -982,6 +983,31 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const uploadImageFile = async (file: File, category: MediaItem['category'] = 'general'): Promise<MediaItem> => {
+    // 1. Attempt direct upload to Supabase Storage 'media' bucket
+    try {
+      const storageResult = await uploadFileToSupabaseStorage(file, 'media', category);
+      if (storageResult && storageResult.publicUrl) {
+        const newMedia: MediaItem = {
+          id: `storage-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          name: storageResult.name || file.name.replace(/\.[^/.]+$/, ''),
+          url: storageResult.publicUrl,
+          size: storageResult.size,
+          dimensions: 'Supabase Storage',
+          uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          category
+        };
+
+        setMediaItems((prev) => [newMedia, ...prev]);
+        saveMediaItemToSupabase(newMedia).catch((err) => {
+          console.warn('Could not save uploaded media item metadata to Supabase:', err);
+        });
+        return newMedia;
+      }
+    } catch (storageErr) {
+      console.warn('Supabase storage upload attempt encountered error, trying optimized compression:', storageErr);
+    }
+
+    // 2. Fallback: Compress and optimize image data URL
     try {
       const optimized = await compressAndOptimizeImage(file);
       const newMedia: MediaItem = {

@@ -16,26 +16,32 @@ import {
   Camera,
   FolderOpen
 } from 'lucide-react';
+import { ImagePickerModal } from './ImagePickerModal';
+import { useData } from '../context/DataContext';
 
 interface QuickArticlePhotoManagerModalProps {
   article: JournalArticle | null;
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
   onSave: (updatedArticle: JournalArticle) => void;
-  onOpenLibraryPicker: (target: 'cover' | 'gallery-item' | 'gallery-new', galleryIndex?: number) => void;
-  uploadImageFile: (file: File, category?: 'projects' | 'knowledge' | 'general') => Promise<any>;
-  showToast: (msg: string) => void;
+  onOpenLibraryPicker?: (target: 'cover' | 'gallery-item' | 'gallery-new', galleryIndex?: number) => void;
+  uploadImageFile?: (file: File, category?: 'projects' | 'knowledge' | 'general') => Promise<any>;
+  showToast?: (msg: string) => void;
 }
 
 export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerModalProps> = ({
   article,
-  isOpen,
+  isOpen = true,
   onClose,
   onSave,
   onOpenLibraryPicker,
-  uploadImageFile,
-  showToast
+  uploadImageFile: customUploadImageFile,
+  showToast: customShowToast
 }) => {
+  const { uploadImageFile: ctxUploadImageFile } = useData();
+  const uploadImageFile = customUploadImageFile || ctxUploadImageFile;
+  const showToast = customShowToast || ((msg: string) => console.log(msg));
+
   if (!isOpen || !article) return null;
 
   const [coverImage, setCoverImage] = useState(article.image || '');
@@ -44,6 +50,12 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
   );
   const [isUploading, setIsUploading] = useState(false);
   const [previewZoomUrl, setPreviewZoomUrl] = useState<string | null>(null);
+
+  // Embedded ImagePickerModal target
+  const [pickerTarget, setPickerTarget] = useState<{
+    type: 'cover' | 'gallery-item' | 'gallery-new';
+    index?: number;
+  } | null>(null);
 
   // File input refs
   const coverFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -78,7 +90,7 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
   };
 
   // Handle Batch Figures Upload
-  const handleBatchFiguresUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBatchGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -87,24 +99,25 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
       const newItems: { url: string; title?: string; caption?: string }[] = [];
       for (let i = 0; i < files.length; i++) {
         const item = await uploadImageFile(files[i], 'knowledge');
+        const figNum = (gallery.length + newItems.length + 1).toString().padStart(2, '0');
         newItems.push({
           url: item.url,
-          title: `Figure ${gallery.length + newItems.length + 1}: ${item.name.replace(/[-_]/g, ' ')}`,
-          caption: 'Technical schematic, micro-crack analysis, or laboratory load-deflection curve.'
+          title: item.name.replace(/[-_]/g, ' '),
+          caption: `Figure ${figNum}: Engineering benchmark diagram for ${article.title}.`
         });
       }
       setGallery((prev) => [...prev, ...newItems]);
       showToast(`${newItems.length} technical figures added to article!`);
     } catch (err) {
       console.error(err);
-      showToast('Error uploading figures');
+      showToast('Error uploading images');
     } finally {
       setIsUploading(false);
       if (batchFileInputRef.current) batchFileInputRef.current.value = '';
     }
   };
 
-  // Handle Single Figure Replacement Upload
+  // Handle Single Item Replacement Upload
   const handleItemUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || activeItemIndex === null) return;
@@ -118,7 +131,7 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
       showToast(`Figure ${activeItemIndex + 1} updated!`);
     } catch (err) {
       console.error(err);
-      showToast('Failed to replace figure photo');
+      showToast('Failed to replace image');
     } finally {
       setIsUploading(false);
       setActiveItemIndex(null);
@@ -131,30 +144,65 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
     itemFileInputRef.current?.click();
   };
 
-  const handleAddEmptyFigure = () => {
-    const figNum = gallery.length + 1;
+  const openPicker = (type: 'cover' | 'gallery-item' | 'gallery-new', index?: number) => {
+    if (onOpenLibraryPicker) {
+      onOpenLibraryPicker(type, index);
+    } else {
+      setPickerTarget({ type, index });
+    }
+  };
+
+  const handleApplyPickedImage = (url: string) => {
+    if (!pickerTarget) return;
+
+    if (pickerTarget.type === 'cover') {
+      setCoverImage(url);
+      showToast('Article cover updated from library');
+    } else if (pickerTarget.type === 'gallery-item' && typeof pickerTarget.index === 'number') {
+      const idx = pickerTarget.index;
+      setGallery((prev) =>
+        prev.map((g, i) => (i === idx ? { ...g, url } : g))
+      );
+      showToast(`Figure #${idx + 1} updated from library`);
+    } else if (pickerTarget.type === 'gallery-new') {
+      const figNum = (gallery.length + 1).toString().padStart(2, '0');
+      setGallery((prev) => [
+        ...prev,
+        {
+          url,
+          title: `Figure ${figNum}: Engineering Microstructure`,
+          caption: 'High-resolution testing or finite element stress analysis diagram.'
+        }
+      ]);
+      showToast('New figure added from library');
+    }
+    setPickerTarget(null);
+  };
+
+  const handleAddEmptyGalleryItem = () => {
+    const figNum = (gallery.length + 1).toString().padStart(2, '0');
     setGallery((prev) => [
       ...prev,
       {
-        url: '/images/applications/app-industrial-flooring.svg',
-        title: `Figure ${figNum}: Interfacial Micro-Structure`,
-        caption: 'Scanning electron micrograph or load redistribution schematic.'
+        url: '/images/knowledge/fig-crack-mechanism.svg',
+        title: `Figure ${figNum}: Crack Control Dynamics`,
+        caption: `Micro-crack bridging under flexural stress protocol.`
       }
     ]);
-    showToast('New technical figure slot added');
+    showToast('New figure slot added');
   };
 
-  const handleRemoveFigure = (index: number) => {
+  const handleRemoveGalleryItem = (index: number) => {
     setGallery((prev) => prev.filter((_, idx) => idx !== index));
     showToast('Figure removed from article');
   };
 
   const handleMakeCover = (url: string) => {
     setCoverImage(url);
-    showToast('Selected figure set as Article Cover!');
+    showToast('Selected figure set as Main Article Cover!');
   };
 
-  const handleMoveFigure = (index: number, direction: 'up' | 'down') => {
+  const handleMoveItem = (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= gallery.length) return;
 
@@ -176,8 +224,8 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#00356a]/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 max-w-4xl w-full shadow-bubble-lg border border-[#e2e6eb] max-h-[90vh] flex flex-col justify-between overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-[#00356a]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+      <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 max-w-4xl w-full shadow-bubble-lg border border-[#e2e6eb] max-h-[92vh] flex flex-col justify-between overflow-hidden">
         {/* Hidden File Inputs */}
         <input
           ref={coverFileInputRef}
@@ -192,7 +240,7 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
           accept="image/*"
           multiple
           className="hidden"
-          onChange={handleBatchFiguresUpload}
+          onChange={handleBatchGalleryUpload}
         />
         <input
           ref={itemFileInputRef}
@@ -207,17 +255,17 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold text-[#006e21] uppercase tracking-wider bg-[#006e21]/10 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <Camera className="w-3 h-3" /> Technical Visuals & Figures
+                <Camera className="w-3 h-3" /> Technical Article Figures & Storage
               </span>
               <span className="text-[11px] font-semibold text-[#00356a]/60">
-                {article.category}
+                {article.readTime}
               </span>
             </div>
             <h3 className="text-xl font-black text-[#00356a] mt-1">
               Manage Visuals: {article.title}
             </h3>
             <p className="text-xs text-[#00356a]/70 mt-0.5">
-              Change cover photo, upload technical micrographs, or replace figures shown in the article modal.
+              Change hero header image, manage ASTM/EN test diagrams, or batch upload directly to Supabase Storage.
             </p>
           </div>
           <button
@@ -230,15 +278,15 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
 
         {/* Scrollable Content */}
         <div className="overflow-y-auto py-6 pr-2 space-y-8 flex-1">
-          {/* SECTION 1: ARTICLE COVER PHOTO */}
+          {/* SECTION 1: MAIN COVER PHOTO */}
           <div className="bg-[#f4f6f8] rounded-3xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#00356a] flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#00356a]" /> Article Cover Photo
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#00356a]" /> Article Header Visual
                 </span>
                 <p className="text-[11px] text-[#00356a]/60 mt-0.5">
-                  Displayed on the Knowledge card and at the header of the article modal.
+                  Main banner displayed at the top of the research monograph and blog catalog.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -249,15 +297,15 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                   className="px-4 py-2 rounded-full bg-[#00356a] text-white hover:bg-[#002244] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-bubble-sm transition-all"
                 >
                   <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{isUploading ? 'Uploading...' : 'Upload New Cover'}</span>
+                  <span>{isUploading ? 'Uploading...' : 'Upload Header'}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => onOpenLibraryPicker('cover')}
+                  onClick={() => openPicker('cover')}
                   className="px-4 py-2 rounded-full bg-white text-[#00356a] hover:bg-[#e2e6eb] border border-[#dce0e6] text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-bubble-sm"
                 >
                   <FolderOpen className="w-3.5 h-3.5 text-[#006e21]" />
-                  <span>From Media Library</span>
+                  <span>Pick from Library</span>
                 </button>
               </div>
             </div>
@@ -265,8 +313,8 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
               <div className="sm:col-span-5 h-44 rounded-2xl overflow-hidden bg-white border border-[#dce0e6] shadow-bubble-inset relative group">
                 <img
-                  src={coverImage || '/images/applications/app-industrial-flooring.svg'}
-                  alt="Article Cover"
+                  src={coverImage || '/images/knowledge/article-shrinkage.svg'}
+                  alt="Article Cover Preview"
                   className="w-full h-full object-cover"
                 />
                 <button
@@ -294,7 +342,7 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                 </div>
                 <div className="text-[11px] text-[#00356a]/70 flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-[#006e21]" />
-                  <span>Automatically optimizes and renders crisp visual graphics on both mobile and desktop.</span>
+                  <span>Stored on Supabase Storage 'media' bucket with permanent CDN caching.</span>
                 </div>
               </div>
             </div>
@@ -307,11 +355,11 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                 <div className="flex items-center gap-2">
                   <Layers className="w-4 h-4 text-[#006e21]" />
                   <h4 className="text-base font-extrabold text-[#00356a]">
-                    Technical Figures & Micrographs ({gallery.length} Figures)
+                    Monograph Figures & Micrographs ({gallery.length} Figures)
                   </h4>
                 </div>
                 <p className="text-xs text-[#00356a]/70 mt-0.5">
-                  Embed laboratory test graphs, ASTM beam break images, or structural sketches.
+                  High-resolution graphs, load-deflection plots, and SEM micrographs.
                 </p>
               </div>
 
@@ -321,18 +369,25 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                   disabled={isUploading}
                   onClick={() => batchFileInputRef.current?.click()}
                   className="px-4 py-2 rounded-full bg-[#006e21] text-white hover:bg-[#005a1b] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-bubble-sm transition-all"
-                  title="Select multiple figures from your computer"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>Batch Upload Figures</span>
                 </button>
                 <button
                   type="button"
-                  onClick={handleAddEmptyFigure}
+                  onClick={() => openPicker('gallery-new')}
+                  className="px-3.5 py-2 rounded-full bg-white text-[#00356a] hover:bg-[#f4f6f8] border border-[#dce0e6] text-xs font-semibold flex items-center gap-1 cursor-pointer shadow-bubble-sm"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-[#006e21]" />
+                  <span>Add from Library</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddEmptyGalleryItem}
                   className="px-3.5 py-2 rounded-full bg-white text-[#00356a] hover:bg-[#f4f6f8] border border-[#dce0e6] text-xs font-semibold flex items-center gap-1 cursor-pointer shadow-bubble-sm"
                 >
                   <Plus className="w-3.5 h-3.5 text-[#006e21]" />
-                  <span>Add Figure Slot</span>
+                  <span>New Figure</span>
                 </button>
               </div>
             </div>
@@ -340,10 +395,28 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
             {gallery.length === 0 ? (
               <div className="p-8 text-center bg-[#f4f6f8] rounded-3xl border border-dashed border-[#dce0e6]">
                 <ImageIcon className="w-10 h-10 text-[#00356a]/30 mx-auto mb-2" />
-                <p className="text-sm font-bold text-[#00356a]">No figures in this article yet</p>
+                <p className="text-sm font-bold text-[#00356a]">No technical figures attached yet</p>
                 <p className="text-xs text-[#00356a]/60 mt-1 max-w-sm mx-auto">
-                  Click "Batch Upload Figures" or "Add Figure Slot" to attach research photos, diagrams, and formulas.
+                  Click "Batch Upload Figures" to upload diagrams, or pick existing media assets.
                 </p>
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => batchFileInputRef.current?.click()}
+                    className="px-5 py-2 rounded-full bg-[#00356a] text-white text-xs font-bold hover:bg-[#002244] cursor-pointer shadow-bubble-sm inline-flex items-center gap-2"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Upload Figures</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openPicker('gallery-new')}
+                    className="px-5 py-2 rounded-full bg-white border border-[#dce0e6] text-[#00356a] text-xs font-bold hover:bg-[#f4f6f8] cursor-pointer shadow-bubble-sm inline-flex items-center gap-2"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-[#006e21]" />
+                    <span>Pick from Library</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -367,7 +440,7 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                           <button
                             type="button"
                             disabled={index === 0}
-                            onClick={() => handleMoveFigure(index, 'up')}
+                            onClick={() => handleMoveItem(index, 'up')}
                             className="p-1 rounded-lg bg-white text-[#00356a] hover:bg-[#e2e6eb] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer border border-[#dce0e6]"
                           >
                             <ArrowUp className="w-3 h-3" />
@@ -375,14 +448,14 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                           <button
                             type="button"
                             disabled={index === gallery.length - 1}
-                            onClick={() => handleMoveFigure(index, 'down')}
+                            onClick={() => handleMoveItem(index, 'down')}
                             className="p-1 rounded-lg bg-white text-[#00356a] hover:bg-[#e2e6eb] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer border border-[#dce0e6]"
                           >
                             <ArrowDown className="w-3 h-3" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleRemoveFigure(index)}
+                            onClick={() => handleRemoveGalleryItem(index)}
                             className="p-1 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer border border-rose-200"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -390,7 +463,7 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                         </div>
                       </div>
 
-                      {/* Image Preview */}
+                      {/* Image Preview & Replacement Buttons */}
                       <div className="h-40 w-full rounded-xl overflow-hidden bg-white border border-[#dce0e6] relative shadow-bubble-inset">
                         <img
                           src={item.url}
@@ -404,15 +477,15 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                             className="px-3 py-1.5 rounded-full bg-[#006e21] text-white text-[11px] font-bold hover:bg-[#005a1b] cursor-pointer shadow-sm flex items-center gap-1"
                           >
                             <Upload className="w-3 h-3" />
-                            <span>Replace</span>
+                            <span>Upload</span>
                           </button>
                           <button
                             type="button"
-                            onClick={() => onOpenLibraryPicker('gallery-item', index)}
+                            onClick={() => openPicker('gallery-item', index)}
                             className="px-3 py-1.5 rounded-full bg-white text-[#00356a] text-[11px] font-bold hover:bg-[#f4f6f8] cursor-pointer shadow-sm flex items-center gap-1"
                           >
                             <FolderOpen className="w-3 h-3" />
-                            <span>Pick</span>
+                            <span>Library</span>
                           </button>
                           <button
                             type="button"
@@ -424,11 +497,11 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                         </div>
                       </div>
 
-                      {/* Figure Inputs */}
+                      {/* Figure Meta Inputs */}
                       <div className="mt-3 space-y-2">
                         <div>
                           <label className="block text-[10px] font-bold uppercase text-[#00356a]/80 mb-0.5">
-                            Figure Title
+                            Figure Heading
                           </label>
                           <input
                             type="text"
@@ -444,7 +517,7 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
 
                         <div>
                           <label className="block text-[10px] font-bold uppercase text-[#00356a]/80 mb-0.5">
-                            Scientific / Engineering Caption
+                            Technical Caption
                           </label>
                           <textarea
                             rows={2}
@@ -471,10 +544,10 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                       </button>
                       <button
                         type="button"
-                        onClick={() => triggerItemUpload(index)}
+                        onClick={() => openPicker('gallery-item', index)}
                         className="text-[11px] font-semibold text-[#00356a] hover:underline flex items-center gap-1 cursor-pointer"
                       >
-                        <Upload className="w-3 h-3" />
+                        <FolderOpen className="w-3 h-3" />
                         <span>Change Figure</span>
                       </button>
                     </div>
@@ -504,6 +577,21 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
           </button>
         </div>
       </div>
+
+      {/* Embedded ImagePickerModal */}
+      {pickerTarget && (
+        <ImagePickerModal
+          isOpen={true}
+          onClose={() => setPickerTarget(null)}
+          title={
+            pickerTarget.type === 'cover'
+              ? 'Select or Upload Article Cover'
+              : 'Select or Upload Technical Figure'
+          }
+          defaultCategory="knowledge"
+          onSelectImage={handleApplyPickedImage}
+        />
+      )}
 
       {/* Full Preview Zoom Modal */}
       {previewZoomUrl && (

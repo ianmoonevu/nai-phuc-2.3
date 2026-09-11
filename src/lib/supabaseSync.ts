@@ -514,8 +514,127 @@ function mapConsultationToRow(req: ConsultationRequest): any {
 }
 
 // =========================================================================
-// 5. MEDIA ASSET ITEMS (Global Centralized Media Library)
+// 5. MEDIA ASSET ITEMS & SUPABASE STORAGE ('media' Bucket)
 // =========================================================================
+
+/**
+ * Direct file upload to Supabase Storage 'media' bucket.
+ * Returns publicUrl, storagePath, and formatted size.
+ */
+export async function uploadFileToSupabaseStorage(
+  file: File,
+  bucketName: string = 'media',
+  category: string = 'general'
+): Promise<{ publicUrl: string; filePath: string; size: string; name: string } | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  try {
+    const ext = file.name.split('.').pop() || 'png';
+    const cleanBaseName = file.name
+      .replace(/\.[^/.]+$/, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .substring(0, 40);
+    const datePrefix = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const filePath = `${category}/${datePrefix}/${uniqueId}-${cleanBaseName}.${ext}`;
+
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: file.type || 'image/jpeg'
+      });
+
+    if (error) {
+      console.warn(`Supabase Storage upload to '${bucketName}' error:`, error.message);
+      return null;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(data.path || filePath);
+
+    const sizeInKb = Math.round(file.size / 1024);
+    const sizeStr = sizeInKb > 1024 ? `${(sizeInKb / 1024).toFixed(1)} MB` : `${sizeInKb} KB`;
+
+    return {
+      publicUrl: publicUrlData.publicUrl,
+      filePath: data.path || filePath,
+      size: sizeStr,
+      name: file.name.replace(/\.[^/.]+$/, '')
+    };
+  } catch (err) {
+    console.warn(`Supabase Storage upload exception in bucket '${bucketName}':`, err);
+    return null;
+  }
+}
+
+/**
+ * List files directly from Supabase Storage 'media' bucket.
+ */
+export async function listStorageFiles(
+  folder: string = '',
+  bucketName: string = 'media'
+): Promise<{ name: string; id: string; url: string; createdAt: string }[] | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .list(folder, {
+        limit: 100,
+        offset: 0,
+        sortBy: { column: 'created_at', order: 'desc' }
+      });
+
+    if (error) {
+      console.warn(`Supabase Storage list error in '${bucketName}':`, error.message);
+      return null;
+    }
+
+    return (data || []).map((file) => {
+      const fullPath = folder ? `${folder}/${file.name}` : file.name;
+      const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(fullPath);
+      return {
+        id: file.id || fullPath,
+        name: file.name,
+        url: publicData.publicUrl,
+        createdAt: file.created_at || new Date().toISOString()
+      };
+    });
+  } catch (err) {
+    console.warn('Supabase listStorageFiles exception:', err);
+    return null;
+  }
+}
+
+/**
+ * Delete a file directly from Supabase Storage bucket.
+ */
+export async function deleteFileFromSupabaseStorage(
+  filePath: string,
+  bucketName: string = 'media'
+): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase.storage.from(bucketName).remove([filePath]);
+    if (error) {
+      console.warn('Supabase deleteFileFromStorage error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('Supabase deleteFileFromStorage exception:', err);
+    return false;
+  }
+}
 
 export async function fetchMediaItemsFromSupabase(): Promise<MediaItem[] | null> {
   const supabase = getSupabase();

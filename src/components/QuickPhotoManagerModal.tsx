@@ -14,28 +14,35 @@ import {
   Save,
   Eye,
   Camera,
-  FolderOpen
+  FolderOpen,
+  CloudUpload
 } from 'lucide-react';
+import { ImagePickerModal } from './ImagePickerModal';
+import { useData } from '../context/DataContext';
 
 interface QuickPhotoManagerModalProps {
   project: ProjectCaseStudy | null;
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
   onSave: (updatedProject: ProjectCaseStudy) => void;
-  onOpenLibraryPicker: (target: 'cover' | 'gallery-item' | 'gallery-new', galleryIndex?: number) => void;
-  uploadImageFile: (file: File, category?: 'projects' | 'knowledge' | 'general') => Promise<any>;
-  showToast: (msg: string) => void;
+  onOpenLibraryPicker?: (target: 'cover' | 'gallery-item' | 'gallery-new', galleryIndex?: number) => void;
+  uploadImageFile?: (file: File, category?: 'projects' | 'knowledge' | 'general') => Promise<any>;
+  showToast?: (msg: string) => void;
 }
 
 export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
   project,
-  isOpen,
+  isOpen = true,
   onClose,
   onSave,
   onOpenLibraryPicker,
-  uploadImageFile,
-  showToast
+  uploadImageFile: customUploadImageFile,
+  showToast: customShowToast
 }) => {
+  const { uploadImageFile: ctxUploadImageFile } = useData();
+  const uploadImageFile = customUploadImageFile || ctxUploadImageFile;
+  const showToast = customShowToast || ((msg: string) => console.log(msg));
+
   if (!isOpen || !project) return null;
 
   const [coverImage, setCoverImage] = useState(project.image || '');
@@ -44,6 +51,12 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
   );
   const [isUploading, setIsUploading] = useState(false);
   const [previewZoomUrl, setPreviewZoomUrl] = useState<string | null>(null);
+
+  // Embedded ImagePickerModal target
+  const [pickerTarget, setPickerTarget] = useState<{
+    type: 'cover' | 'gallery-item' | 'gallery-new';
+    index?: number;
+  } | null>(null);
 
   // File input refs
   const coverFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -134,6 +147,42 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
     itemFileInputRef.current?.click();
   };
 
+  const openPicker = (type: 'cover' | 'gallery-item' | 'gallery-new', index?: number) => {
+    if (onOpenLibraryPicker) {
+      onOpenLibraryPicker(type, index);
+    } else {
+      setPickerTarget({ type, index });
+    }
+  };
+
+  const handleApplyPickedImage = (url: string) => {
+    if (!pickerTarget) return;
+
+    if (pickerTarget.type === 'cover') {
+      setCoverImage(url);
+      showToast('Cover photo updated from library');
+    } else if (pickerTarget.type === 'gallery-item' && typeof pickerTarget.index === 'number') {
+      const idx = pickerTarget.index;
+      setGallery((prev) =>
+        prev.map((g, i) => (i === idx ? { ...g, url } : g))
+      );
+      showToast(`Photo #${idx + 1} updated from library`);
+    } else if (pickerTarget.type === 'gallery-new') {
+      const phaseNum = (gallery.length + 1).toString().padStart(2, '0');
+      setGallery((prev) => [
+        ...prev,
+        {
+          url,
+          title: `Phase ${phaseNum} Laser Screed Placement`,
+          caption: 'Continuous monolithic pour achieving strict F_min flatness tolerances.',
+          phaseTag: `${phaseNum} SLAB EXECUTION`
+        }
+      ]);
+      showToast('New photo added to gallery from library');
+    }
+    setPickerTarget(null);
+  };
+
   const handleAddEmptyGalleryItem = () => {
     const phaseNum = (gallery.length + 1).toString().padStart(2, '0');
     setGallery((prev) => [
@@ -180,8 +229,8 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#00356a]/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 max-w-4xl w-full shadow-bubble-lg border border-[#e2e6eb] max-h-[90vh] flex flex-col justify-between overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-[#00356a]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+      <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 max-w-4xl w-full shadow-bubble-lg border border-[#e2e6eb] max-h-[92vh] flex flex-col justify-between overflow-hidden">
         {/* Hidden File Inputs */}
         <input
           ref={coverFileInputRef}
@@ -211,7 +260,7 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold text-[#006e21] uppercase tracking-wider bg-[#006e21]/10 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <Camera className="w-3 h-3" /> Multi-Photo Management
+                <Camera className="w-3 h-3" /> Multi-Photo Management & Storage
               </span>
               <span className="text-[11px] font-semibold text-[#00356a]/60">
                 {project.facilityType}
@@ -221,7 +270,7 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
               Manage All Photos: {project.title}
             </h3>
             <p className="text-xs text-[#00356a]/70 mt-0.5">
-              Change cover picture, replace gallery photos, or batch upload all job site photos at once.
+              Change cover picture, replace gallery photos, or batch upload directly to Supabase Storage.
             </p>
           </div>
           <button
@@ -236,7 +285,7 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
         <div className="overflow-y-auto py-6 pr-2 space-y-8 flex-1">
           {/* SECTION 1: MAIN COVER PHOTO */}
           <div className="bg-[#f4f6f8] rounded-3xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#00356a] flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#00356a]" /> Primary Cover Photo
@@ -257,11 +306,11 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onOpenLibraryPicker('cover')}
+                  onClick={() => openPicker('cover')}
                   className="px-4 py-2 rounded-full bg-white text-[#00356a] hover:bg-[#e2e6eb] border border-[#dce0e6] text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-bubble-sm"
                 >
                   <FolderOpen className="w-3.5 h-3.5 text-[#006e21]" />
-                  <span>From Media Library</span>
+                  <span>Pick from Library</span>
                 </button>
               </div>
             </div>
@@ -298,13 +347,13 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
                 </div>
                 <div className="text-[11px] text-[#00356a]/70 flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-[#006e21]" />
-                  <span>Client-side compression automatically shrinks camera photos to fast-loading web resolution.</span>
+                  <span>Uploaded directly to Supabase Storage 'media' bucket for high-speed delivery.</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* SECTION 2: PROJECT GALLERY SUITE (CHANGE ALL PICTURES) */}
+          {/* SECTION 2: PROJECT GALLERY SUITE */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#e2e6eb]">
               <div>
@@ -332,11 +381,19 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
                 </button>
                 <button
                   type="button"
+                  onClick={() => openPicker('gallery-new')}
+                  className="px-3.5 py-2 rounded-full bg-white text-[#00356a] hover:bg-[#f4f6f8] border border-[#dce0e6] text-xs font-semibold flex items-center gap-1 cursor-pointer shadow-bubble-sm"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-[#006e21]" />
+                  <span>Add from Library</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleAddEmptyGalleryItem}
                   className="px-3.5 py-2 rounded-full bg-white text-[#00356a] hover:bg-[#f4f6f8] border border-[#dce0e6] text-xs font-semibold flex items-center gap-1 cursor-pointer shadow-bubble-sm"
                 >
                   <Plus className="w-3.5 h-3.5 text-[#006e21]" />
-                  <span>Add Photo Slot</span>
+                  <span>New Slot</span>
                 </button>
               </div>
             </div>
@@ -346,16 +403,26 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
                 <ImageIcon className="w-10 h-10 text-[#00356a]/30 mx-auto mb-2" />
                 <p className="text-sm font-bold text-[#00356a]">No gallery photos yet</p>
                 <p className="text-xs text-[#00356a]/60 mt-1 max-w-sm mx-auto">
-                  Click "Batch Upload Photos" to add job site photos, or click "Add Photo Slot" to customize photos manually.
+                  Click "Batch Upload Photos" to add job site photos, or click "Add from Library" to choose existing images.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => batchFileInputRef.current?.click()}
-                  className="mt-4 px-5 py-2 rounded-full bg-[#00356a] text-white text-xs font-bold hover:bg-[#002244] cursor-pointer shadow-bubble-sm inline-flex items-center gap-2"
-                >
-                  <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Upload Photos from Device</span>
-                </button>
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => batchFileInputRef.current?.click()}
+                    className="px-5 py-2 rounded-full bg-[#00356a] text-white text-xs font-bold hover:bg-[#002244] cursor-pointer shadow-bubble-sm inline-flex items-center gap-2"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Upload Photos</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openPicker('gallery-new')}
+                    className="px-5 py-2 rounded-full bg-white border border-[#dce0e6] text-[#00356a] text-xs font-bold hover:bg-[#f4f6f8] cursor-pointer shadow-bubble-sm inline-flex items-center gap-2"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-[#006e21]" />
+                    <span>Pick from Library</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -419,15 +486,15 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
                             className="px-3 py-1.5 rounded-full bg-[#006e21] text-white text-[11px] font-bold hover:bg-[#005a1b] cursor-pointer shadow-sm flex items-center gap-1"
                           >
                             <Upload className="w-3 h-3" />
-                            <span>Replace</span>
+                            <span>Upload</span>
                           </button>
                           <button
                             type="button"
-                            onClick={() => onOpenLibraryPicker('gallery-item', index)}
+                            onClick={() => openPicker('gallery-item', index)}
                             className="px-3 py-1.5 rounded-full bg-white text-[#00356a] text-[11px] font-bold hover:bg-[#f4f6f8] cursor-pointer shadow-sm flex items-center gap-1"
                           >
                             <FolderOpen className="w-3 h-3" />
-                            <span>Pick</span>
+                            <span>Library</span>
                           </button>
                           <button
                             type="button"
@@ -504,10 +571,10 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => triggerItemUpload(index)}
+                        onClick={() => openPicker('gallery-item', index)}
                         className="text-[11px] font-semibold text-[#00356a] hover:underline flex items-center gap-1 cursor-pointer"
                       >
-                        <Upload className="w-3 h-3" />
+                        <FolderOpen className="w-3 h-3" />
                         <span>Change Photo</span>
                       </button>
                     </div>
@@ -537,6 +604,21 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Embedded ImagePickerModal */}
+      {pickerTarget && (
+        <ImagePickerModal
+          isOpen={true}
+          onClose={() => setPickerTarget(null)}
+          title={
+            pickerTarget.type === 'cover'
+              ? 'Select or Upload Cover Photo'
+              : 'Select or Upload Gallery Photo'
+          }
+          defaultCategory="projects"
+          onSelectImage={handleApplyPickedImage}
+        />
+      )}
 
       {/* Full Preview Zoom Modal */}
       {previewZoomUrl && (

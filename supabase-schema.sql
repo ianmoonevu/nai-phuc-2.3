@@ -442,6 +442,35 @@ EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 -- =========================================================================
+-- 9. SUPABASE STORAGE: 'media' BUCKET PROVISIONING & POLICIES
+-- =========================================================================
+-- Automatically provision the public 'media' storage bucket for photos and CAD assets
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'media',
+  'media',
+  true,
+  52428800, -- 50MB per file
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/gif', 'application/pdf']::text[]
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = true,
+  file_size_limit = 52428800;
+
+-- Storage policies for the 'media' bucket (Public read, write, update, delete)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public Access media bucket'
+  ) THEN
+    CREATE POLICY "Public Access media bucket" ON storage.objects
+      FOR ALL
+      USING (bucket_id = 'media')
+      WITH CHECK (bucket_id = 'media');
+  END IF;
+END $$;
+
+-- =========================================================================
 -- SEED INITIAL DEFAULT RECORDS
 -- =========================================================================
 INSERT INTO public.site_branding (id, hotline_phone, hotline_label, hotline_subtitle, hotline_enabled)
@@ -451,3 +480,4 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.about_page_info (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.about_info (id, data) VALUES ('default', '{}'::jsonb) ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.epc_section_config (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;
+

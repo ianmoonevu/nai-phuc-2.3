@@ -11,6 +11,7 @@ import { AdminBackupModal } from '../components/AdminBackupModal';
 import { AdminYouTubeSection } from '../components/AdminYouTubeSection';
 import { AdminHotlineSocialSection } from '../components/AdminHotlineSocialSection';
 import { AdminSupabaseConfigSection } from '../components/AdminSupabaseConfigSection';
+import { ImagePickerModal } from '../components/ImagePickerModal';
 import {
   ShieldCheck,
   BookOpen,
@@ -2631,67 +2632,37 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         </div>
       )}
 
-      {/* FLEXIBLE MEDIA SELECTOR MODAL (For any context: cover, gallery item, new slot) */}
+      {/* FLEXIBLE MEDIA SELECTOR & UPLOADER MODAL */}
       {pickerContext && (
-        <div className="fixed inset-0 z-50 bg-[#00356a]/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 max-w-2xl w-full shadow-bubble-lg border border-[#e2e6eb] max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-[#e2e6eb] mb-4">
-              <div>
-                <span className="text-[10px] font-bold text-[#006e21] uppercase tracking-wider">Asset Selector</span>
-                <h3 className="text-lg font-bold text-[#00356a]">
-                  Select Image from Media Library
-                </h3>
-              </div>
-              <button
-                onClick={() => setPickerContext(null)}
-                className="p-2 rounded-full bg-[#f4f6f8] text-[#00356a] hover:bg-[#e2e6eb] cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-              {mediaItems.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => {
-                    applyMediaItemToTarget(item, pickerContext);
-                    setPickerContext(null);
-                    showToast(`Selected "${item.name}"`);
-                  }}
-                  className="rounded-2xl border border-[#e2e6eb] p-2 bg-[#f4f6f8] hover:border-[#006e21] hover:bg-white cursor-pointer transition-all flex flex-col group"
-                >
-                  <div className="aspect-video w-full rounded-xl overflow-hidden bg-white">
-                    <img src={item.url} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                  </div>
-                  <span className="text-[10px] font-bold text-[#00356a] truncate mt-1.5">
-                    {item.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-4 border-t border-[#e2e6eb] flex items-center justify-between">
-              <label className="px-4 py-2 rounded-full bg-[#f4f6f8] text-[#00356a] text-xs font-semibold hover:bg-[#e2e6eb] cursor-pointer inline-flex items-center gap-1.5 shadow-bubble-sm">
-                <Upload className="w-3.5 h-3.5 text-[#006e21]" />
-                <span>Upload New File Instead</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </label>
-
-              <button
-                onClick={() => setPickerContext(null)}
-                className="px-4 py-2 rounded-full text-xs font-semibold text-[#00356a]"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <ImagePickerModal
+          isOpen={true}
+          onClose={() => setPickerContext(null)}
+          title={
+            pickerContext.type.includes('cover')
+              ? 'Select or Upload Cover Photo'
+              : 'Select or Upload Gallery Photo'
+          }
+          defaultCategory={
+            pickerContext.type.includes('project') || pickerContext.type.includes('cover') || pickerContext.type.includes('gallery')
+              ? 'projects'
+              : pickerContext.type.includes('article')
+              ? 'knowledge'
+              : 'all'
+          }
+          onSelectImage={(imageUrl, mediaItem) => {
+            const item: MediaItem = mediaItem || {
+              id: `picker-${Date.now()}`,
+              name: 'Selected Image',
+              url: imageUrl,
+              size: 'Auto',
+              uploadedAt: 'Recent',
+              category: 'general'
+            };
+            applyMediaItemToTarget(item, pickerContext);
+            setPickerContext(null);
+            showToast(`Image applied successfully`);
+          }}
+        />
       )}
 
       {/* QUICK ASSIGN MEDIA MODAL */}
