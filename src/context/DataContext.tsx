@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   ProjectCaseStudy,
   JournalArticle,
@@ -249,6 +249,56 @@ const INITIAL_MEDIA_ITEMS: MediaItem[] = [
   }
 ];
 
+const DEFAULT_BRANDING: SiteBranding = {
+  headerLogoUrl: '',
+  headerLogoHeight: 44,
+  footerLogoUrl: '',
+  footerLogoHeight: 56,
+  faviconUrl: '/favicon.svg',
+
+  // Hotline / Call Now Configuration
+  hotlinePhone: '0916 576 156',
+  hotlineLabel: 'CALL NOW',
+  hotlineSubtitle: 'Direct Engineering Support',
+  hotlineEnabled: true,
+
+  // Social Media Channels
+  socialLinks: {
+    facebook: { url: 'https://www.facebook.com', enabled: true },
+    zalo: { url: 'https://zalo.me/0916576156', enabled: true },
+    linkedin: { url: 'https://www.linkedin.com', enabled: true },
+    youtube: { url: 'https://www.youtube.com/@hokimetal', enabled: true },
+    tiktok: { url: 'https://www.tiktok.com/@hokimetal', enabled: true }
+  },
+
+  // Main page hero picture (behind the box of text)
+  heroImageUrl: '/images/hoki-industrial-floor-hero.svg',
+  heroOverlayOpacity: 15,
+
+  // Main page YouTube video
+  mainPageYoutubeUrl: 'https://www.youtube.com/@hokimetal',
+  mainPageVideoTitle: 'HOKI Steel Fiber Concrete Systems - Official Video @hokimetal',
+  mainPageVideoChannelUrl: 'https://www.youtube.com/@hokimetal',
+  mainPageVideoChannelName: '@hokimetal',
+  mainPageVideoAutoplay: true,
+  mainPageVideoMuted: true,
+  mainPageVideoDefaultOpen: true,
+
+  // About Us page pictures (all)
+  aboutHeroImageUrl: '/images/hoki-greener-tomorrow-hero.svg',
+  aboutFactoryImageUrl: '/images/factory-alpha-hub.svg',
+  aboutLeadershipAvatars: {
+    'Nguyen Van An': '/images/team/avatar-david.svg',
+    'Pham Thi Mai': '/images/team/avatar-elena.svg',
+    'Le Hoang Long': '/images/team/avatar-alan.svg'
+  },
+  aboutAdvisoryAvatars: {
+    'Dr. Alan Turing': '/images/team/avatar-alan.svg',
+    'Sarah Jenkins': '/images/team/avatar-elena.svg',
+    'Prof. Kenji Sato': '/images/team/avatar-david.svg'
+  }
+};
+
 interface DataContextType {
   projects: ProjectCaseStudy[];
   articles: JournalArticle[];
@@ -322,62 +372,8 @@ const ABOUT_INFO_STORAGE_KEY = 'hoki_about_info_v1';
 const LEADERSHIP_STORAGE_KEY = 'hoki_leadership_v1';
 const ADVISORY_STORAGE_KEY = 'hoki_advisory_v1';
 
-const DEFAULT_BRANDING: SiteBranding = {
-  headerLogoUrl: '',
-  headerLogoHeight: 44,
-  footerLogoUrl: '',
-  footerLogoHeight: 56,
-  faviconUrl: '/favicon.svg',
-
-  // Hotline / Call Now Configuration
-  hotlinePhone: '0916 576 156',
-  hotlineLabel: 'CALL NOW',
-  hotlineSubtitle: 'Direct Engineering Support',
-  hotlineEnabled: true,
-
-  // Social Media Channels
-  socialLinks: {
-    facebook: { url: 'https://www.facebook.com', enabled: true },
-    zalo: { url: 'https://zalo.me/0916576156', enabled: true },
-    linkedin: { url: 'https://www.linkedin.com', enabled: true },
-    youtube: { url: 'https://www.youtube.com/@hokimetal', enabled: true },
-    tiktok: { url: 'https://www.tiktok.com/@hokimetal', enabled: true }
-  },
-
-  // Main page hero picture (behind the box of text)
-  heroImageUrl: '/images/hoki-industrial-floor-hero.svg',
-  heroOverlayOpacity: 15,
-
-  // Main page YouTube video
-  mainPageYoutubeUrl: 'https://www.youtube.com/@hokimetal',
-  mainPageVideoTitle: 'HOKI Steel Fiber Concrete Systems - Official Video @hokimetal',
-  mainPageVideoChannelUrl: 'https://www.youtube.com/@hokimetal',
-  mainPageVideoChannelName: '@hokimetal',
-  mainPageVideoAutoplay: true,
-  mainPageVideoMuted: true,
-  mainPageVideoDefaultOpen: true,
-
-  // About Us page pictures (all)
-  aboutHeroImageUrl: '/images/hoki-greener-tomorrow-hero.svg',
-  aboutFactoryImageUrl: '/images/factory-alpha-hub.svg',
-  aboutLeadershipAvatars: {
-    'Nguyen Van An': '/images/team/avatar-david.svg',
-    'Pham Thi Mai': '/images/team/avatar-elena.svg',
-    'Le Hoang Long': '/images/team/avatar-alan.svg'
-  },
-  aboutAdvisoryAvatars: {
-    'Dr. Alan Turing': '/images/team/avatar-alan.svg',
-    'Sarah Jenkins': '/images/team/avatar-elena.svg',
-    'Prof. Kenji Sato': '/images/team/avatar-david.svg'
-  }
-};
-
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isServerSyncing, setIsServerSyncing] = useState<boolean>(false);
-  const [lastServerSyncTime, setLastServerSyncTime] = useState<string | null>(null);
-  const isFetchingRef = useRef<boolean>(false);
-
-  // Initial local state with fallback
+  // Initial local state with fallback directly to constant embedded data
   const [projects, setProjects] = useState<ProjectCaseStudy[]>(() => {
     try {
       const stored = localStorage.getItem(PROJECTS_STORAGE_KEY);
@@ -518,89 +514,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return ADVISORY_BOARD;
   });
 
-  // Server data fetcher
-  const refreshServerData = useCallback(async () => {
-    if (isFetchingRef.current) return;
-    isFetchingRef.current = true;
-    setIsServerSyncing(true);
-
-    try {
-      const res = await fetch('/api/data', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.projects && Array.isArray(data.projects)) {
-          setProjects(data.projects);
-          localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(data.projects));
-        }
-        if (data.articles && Array.isArray(data.articles)) {
-          setArticles(data.articles);
-          localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(data.articles));
-        }
-        if (data.branding && typeof data.branding === 'object') {
-          setBranding(data.branding);
-          localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(data.branding));
-        }
-        if (data.consultationRequests && Array.isArray(data.consultationRequests)) {
-          setConsultationRequests(data.consultationRequests);
-          localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(data.consultationRequests));
-        }
-        if (data.mediaItems && Array.isArray(data.mediaItems)) {
-          setMediaItems(data.mediaItems);
-          try {
-            localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(data.mediaItems));
-          } catch {
-            // ignore quota limit
-          }
-        }
-        if (data.epcPartners && Array.isArray(data.epcPartners)) {
-          setEpcPartners(data.epcPartners);
-          localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(data.epcPartners));
-        }
-        if (data.epcSectionConfig && typeof data.epcSectionConfig === 'object') {
-          setEpcSectionConfig(data.epcSectionConfig);
-          localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(data.epcSectionConfig));
-        }
-        if (data.aboutInfo && typeof data.aboutInfo === 'object') {
-          setAboutInfo(data.aboutInfo);
-          localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(data.aboutInfo));
-        }
-        if (data.leadershipHeads && Array.isArray(data.leadershipHeads)) {
-          setLeadershipHeads(data.leadershipHeads);
-          localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(data.leadershipHeads));
-        }
-        if (data.advisoryMembers && Array.isArray(data.advisoryMembers)) {
-          setAdvisoryMembers(data.advisoryMembers);
-          localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(data.advisoryMembers));
-        }
-        setLastServerSyncTime(new Date().toLocaleTimeString());
-      }
-    } catch (err) {
-      console.warn('Server sync fetch failed; operating on local cache:', err);
-    } finally {
-      setIsServerSyncing(false);
-      isFetchingRef.current = false;
-    }
-  }, []);
-
-  // Fetch on mount + periodic sync every 12s + sync on window focus
-  useEffect(() => {
-    refreshServerData();
-
-    const intervalId = setInterval(() => {
-      refreshServerData();
-    }, 12000);
-
-    const onFocus = () => {
-      refreshServerData();
-    };
-
-    window.addEventListener('focus', onFocus);
-
-    return () => {
-      clearInterval(intervalId);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [refreshServerData]);
+  // Zero-latency instant local status
+  const isServerSyncing = false;
+  const lastServerSyncTime = 'Local Instant Cache Ready';
+  const refreshServerData = async () => {
+    // Pure instant local refresh
+    return Promise.resolve();
+  };
 
   // Sync favicon with DOM
   useEffect(() => {
@@ -625,13 +545,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return next;
     });
-
-    // Push to server
-    fetch('/api/branding', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((e) => console.warn('Server updateBranding error:', e));
   };
 
   const resetBranding = () => {
@@ -641,10 +554,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Could not reset branding in localStorage:', e);
     }
-
-    fetch('/api/branding/reset', { method: 'POST' }).catch((e) =>
-      console.warn('Server resetBranding error:', e)
-    );
   };
 
   // --- EPC PARTNERS ACTIONS ---
@@ -665,12 +574,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/epc/partners/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((e) => console.warn('Server updateEpcPartner error:', e));
   };
 
   const addEpcPartner = (partner: Omit<StrategicPartner, 'id'>): StrategicPartner => {
@@ -685,13 +588,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch('/api/epc/partners', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newPartner)
-    }).catch((e) => console.warn('Server addEpcPartner error:', e));
-
     return newPartner;
   };
 
@@ -701,21 +597,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/epc/partners/${encodeURIComponent(id)}`, {
-      method: 'DELETE'
-    }).catch((e) => console.warn('Server deleteEpcPartner error:', e));
   };
 
   const reorderEpcPartners = (reordered: StrategicPartner[]) => {
     setEpcPartners(reordered);
     localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(reordered));
-
-    fetch('/api/epc/reorder', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partners: reordered })
-    }).catch((e) => console.warn('Server reorderEpcPartners error:', e));
   };
 
   const resetEpcPartners = () => {
@@ -723,10 +609,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setEpcSectionConfig(INITIAL_EPC_CONFIG);
     localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(INITIAL_STRATEGIC_PARTNERS));
     localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(INITIAL_EPC_CONFIG));
-
-    fetch('/api/epc/reset', { method: 'POST' }).catch((e) =>
-      console.warn('Server resetEpcPartners error:', e)
-    );
   };
 
   const updateEpcSectionConfig = (updated: Partial<EpcSectionConfig>) => {
@@ -735,12 +617,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch('/api/epc/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((e) => console.warn('Server updateEpcSectionConfig error:', e));
   };
 
   // --- ABOUT US, LEADERSHIP & ADVISORY ACTIONS ---
@@ -750,12 +626,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch('/api/about/info', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((e) => console.warn('Server updateAboutInfo error:', e));
   };
 
   const resetAboutInfo = () => {
@@ -765,10 +635,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(INITIAL_ABOUT_INFO));
     localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(LEADERSHIP_HEADS));
     localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(ADVISORY_BOARD));
-
-    fetch('/api/about/reset', { method: 'POST' }).catch((e) =>
-      console.warn('Server resetAboutInfo error:', e)
-    );
   };
 
   const updateLeadershipHead = (idOrName: string, updated: Partial<LeadershipHead>) => {
@@ -779,12 +645,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/leadership/${encodeURIComponent(idOrName)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((e) => console.warn('Server updateLeadershipHead error:', e));
   };
 
   const addLeadershipHead = (head: Omit<LeadershipHead, 'id'>): LeadershipHead => {
@@ -797,13 +657,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch('/api/leadership', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newHead)
-    }).catch((e) => console.warn('Server addLeadershipHead error:', e));
-
     return newHead;
   };
 
@@ -813,10 +666,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/leadership/${encodeURIComponent(idOrName)}`, {
-      method: 'DELETE'
-    }).catch((e) => console.warn('Server deleteLeadershipHead error:', e));
   };
 
   const resetLeadershipHeads = () => {
@@ -832,12 +681,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/advisory/${encodeURIComponent(idOrName)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((e) => console.warn('Server updateAdvisoryMember error:', e));
   };
 
   const addAdvisoryMember = (member: Omit<AdvisoryMember, 'id'>): AdvisoryMember => {
@@ -850,13 +693,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch('/api/advisory', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newMember)
-    }).catch((e) => console.warn('Server addAdvisoryMember error:', e));
-
     return newMember;
   };
 
@@ -866,10 +702,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/advisory/${encodeURIComponent(idOrName)}`, {
-      method: 'DELETE'
-    }).catch((e) => console.warn('Server deleteAdvisoryMember error:', e));
   };
 
   const resetAdvisoryMembers = () => {
@@ -884,12 +716,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/projects/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((e) => console.warn('Server updateProject error:', e));
   };
 
   const addProject = (newProject: ProjectCaseStudy) => {
@@ -898,12 +724,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newProject)
-    }).catch((e) => console.warn('Server addProject error:', e));
   };
 
   const deleteProject = (id: string) => {
@@ -912,10 +732,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/projects/${encodeURIComponent(id)}`, {
-      method: 'DELETE'
-    }).catch((e) => console.warn('Server deleteProject error:', e));
   };
 
   const toggleProjectHighlight = (id: string) => {
@@ -924,10 +740,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
-
-    fetch(`/api/projects/${encodeURIComponent(id)}/highlight`, {
-      method: 'PATCH'
-    }).catch((e) => console.warn('Server toggleProjectHighlight error:', e));
   };
 
   // --- ARTICLES ACTIONS ---
@@ -937,12 +749,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/articles/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((e) => console.warn('Server updateArticle error:', e));
   };
 
   const addArticle = (newArticle: JournalArticle) => {
@@ -951,12 +757,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch('/api/articles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newArticle)
-    }).catch((e) => console.warn('Server addArticle error:', e));
   };
 
   const deleteArticle = (id: string) => {
@@ -965,10 +765,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-
-    fetch(`/api/articles/${encodeURIComponent(id)}`, {
-      method: 'DELETE'
-    }).catch((e) => console.warn('Server deleteArticle error:', e));
   };
 
   // --- MEDIA ACTIONS ---
@@ -992,13 +788,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         category
       };
 
-      setMediaItems((prev) => [newMedia, ...prev]);
-
-      fetch('/api/media', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMedia)
-      }).catch((e) => console.warn('Server uploadImageFile error:', e));
+      setMediaItems((prev) => {
+        const next = [newMedia, ...prev];
+        try {
+          localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // ignore quota limit
+        }
+        return next;
+      });
 
       return newMedia;
     } catch (err) {
@@ -1021,13 +819,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }),
             category
           };
-          setMediaItems((prev) => [newMedia, ...prev]);
-
-          fetch('/api/media', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newMedia)
-          }).catch((e) => console.warn('Server uploadImageFile error:', e));
+          setMediaItems((prev) => {
+            const next = [newMedia, ...prev];
+            try {
+              localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
+            } catch {
+              // ignore quota
+            }
+            return next;
+          });
 
           resolve(newMedia);
         };
@@ -1038,29 +838,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addMediaItem = (item: MediaItem) => {
-    setMediaItems((prev) => [item, ...prev]);
-
-    fetch('/api/media', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
-    }).catch((e) => console.warn('Server addMediaItem error:', e));
+    setMediaItems((prev) => {
+      const next = [item, ...prev];
+      try {
+        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   const updateMediaItem = (id: string, updated: Partial<MediaItem>) => {
-    setMediaItems((prev) => prev.map((m) => (m.id === id ? { ...m, ...updated } : m)));
-
-    fetch(`/api/media/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((e) => console.warn('Server updateMediaItem error:', e));
+    setMediaItems((prev) => {
+      const next = prev.map((m) => (m.id === id ? { ...m, ...updated } : m));
+      try {
+        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   const replaceMediaItem = (id: string, newUrl: string, newName?: string) => {
     let oldUrl = '';
-    setMediaItems((prev) =>
-      prev.map((m) => {
+    setMediaItems((prev) => {
+      const next = prev.map((m) => {
         if (m.id === id) {
           oldUrl = m.url;
           return {
@@ -1075,14 +879,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
         }
         return m;
-      })
-    );
-
-    fetch(`/api/media/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: newUrl, name: newName })
-    }).catch((e) => console.warn('Server replaceMediaItem error:', e));
+      });
+      try {
+        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
 
     if (oldUrl) {
       // Automatically update projects referencing the old URL
@@ -1142,11 +946,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteMediaItem = (id: string) => {
-    setMediaItems((prev) => prev.filter((m) => m.id !== id));
-
-    fetch(`/api/media/${encodeURIComponent(id)}`, {
-      method: 'DELETE'
-    }).catch((e) => console.warn('Server deleteMediaItem error:', e));
+    setMediaItems((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      try {
+        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   // --- CONSULTATIONS & LEADS ACTIONS ---
@@ -1161,22 +969,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setConsultationRequests((prev) => {
       const next = [newRecord, ...prev];
-      localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
+      try {
+        localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Could not save consultations to localStorage:', e);
+      }
       return next;
     });
 
+    // Optional webhook trigger if configured
     try {
-      const res = await fetch('/api/consultations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRecord)
-      });
-      if (res.ok) {
-        const serverSaved = await res.json();
-        return serverSaved;
+      const webhookUrl = (window as any).__HOKI_WEBHOOK_URL__ || (import.meta as any).env?.VITE_WEBHOOK_URL;
+      if (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('http')) {
+        fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newRecord),
+          mode: 'no-cors'
+        }).catch((err) => console.warn('External webhook notification attempt:', err));
       }
-    } catch (e) {
-      console.warn('Server addConsultationRequest error:', e);
+    } catch {
+      // Ignore
     }
 
     return newRecord;
@@ -1185,27 +998,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateConsultationStatus = (id: string, status: ConsultationRequest['status']) => {
     setConsultationRequests((prev) => {
       const next = prev.map((c) => (c.id === id ? { ...c, status } : c));
-      localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
+      try {
+        localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Could not save consultation status:', e);
+      }
       return next;
     });
-
-    fetch(`/api/consultations/${encodeURIComponent(id)}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    }).catch((e) => console.warn('Server updateConsultationStatus error:', e));
   };
 
   const deleteConsultationRequest = (id: string) => {
     setConsultationRequests((prev) => {
       const next = prev.filter((c) => c.id !== id);
-      localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
+      try {
+        localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Could not save consultation deletion:', e);
+      }
       return next;
     });
-
-    fetch(`/api/consultations/${encodeURIComponent(id)}`, {
-      method: 'DELETE'
-    }).catch((e) => console.warn('Server deleteConsultationRequest error:', e));
   };
 
   // --- ADMIN AUTH ---
@@ -1263,10 +1074,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem(ABOUT_INFO_STORAGE_KEY);
     localStorage.removeItem(LEADERSHIP_STORAGE_KEY);
     localStorage.removeItem(ADVISORY_STORAGE_KEY);
-
-    fetch('/api/system/reset', { method: 'POST' }).catch((e) =>
-      console.warn('Server system reset error:', e)
-    );
   };
 
   const exportBackupData = (type: 'all' | 'projects' | 'knowledge' = 'all') => {
@@ -1381,28 +1188,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Push backup payload to server
-    try {
-      const res = await fetch('/api/backup/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload, mode })
-      });
-      if (res.ok) {
-        const result = await res.json();
-        return result;
-      }
-    } catch (e) {
-      console.warn('Server importBackupData error:', e);
-    }
-
     return {
       success: true,
       projectCount: importedProjects.length,
       articleCount: importedArticles.length,
       message: `Successfully ${
         mode === 'replace' ? 'restored' : 'merged'
-      } ${importedProjects.length} project dossiers and ${importedArticles.length} knowledge articles into server storage.`
+      } ${importedProjects.length} project dossiers and ${importedArticles.length} knowledge articles into local storage.`
     };
   };
 

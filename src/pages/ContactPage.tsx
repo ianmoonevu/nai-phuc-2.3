@@ -255,6 +255,15 @@ export const ContactPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                    <a
+                      href={`mailto:engineering@hoki-fiber.com?subject=${encodeURIComponent(`[HOKI RFQ] ${rfqType} (${rfqSeries}) - ${rfqArea}m² - ${rfqName}`)}&body=${encodeURIComponent(
+                        `RFQ Parameters:\nSpecifier Name: ${rfqName}\nEmail: ${rfqEmail}\nApplication Sector: ${rfqType}\nTarget Series: ${rfqSeries}\nSlab Area Scope: ${rfqArea.toLocaleString()} m²\nConcrete Grade: ${rfqGrade}\nCalculated Fiber Volume: ${estimatedTonnage} Metric Tons\nEstimated Lead Time: ~${estimatedLeadDays} Working Days`
+                      )}`}
+                      className="px-6 py-2.5 rounded-full bg-[#006e21] text-white text-xs font-bold uppercase tracking-wider cursor-pointer hover:bg-[#005a1b] shadow-bubble-sm transition-all flex items-center gap-2"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Email Scope to Engineering Desk</span>
+                    </a>
                     <button
                       onClick={() => setRfqSubmitted(false)}
                       className="px-6 py-2.5 rounded-full bg-[#00356a] text-white text-xs font-bold uppercase tracking-wider cursor-pointer hover:bg-[#002244] shadow-bubble-sm transition-all"
@@ -442,18 +451,29 @@ export const ContactPage: React.FC = () => {
                   <p className="text-[11px] text-[#00356a]/75 mt-1 leading-relaxed">
                     Your trial kit order for <span className="font-semibold text-[#00356a]">{sampleRecipient || 'your project'}</span> has been recorded in the <span className="font-bold text-[#006e21]">Recent Structural Consultation Inquiries</span> queue. Our materials lab will dispatch the <span className="font-semibold text-[#00356a]">{sampleSeries}</span> kit to {sampleAddress}.
                   </p>
-                  <button
-                    onClick={() => {
-                      setSampleRequested(false);
-                      setSampleRecipient('');
-                      setSampleAddress('');
-                      setSampleEmail('');
-                      setSamplePhone('');
-                    }}
-                    className="mt-4 px-5 py-2 rounded-full bg-[#00356a] text-white text-[11px] font-bold uppercase tracking-wider hover:bg-[#002244] cursor-pointer shadow-bubble-sm transition-all"
-                  >
-                    Request Another Sample Kit
-                  </button>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <a
+                      href={`mailto:engineering@hoki-fiber.com?subject=${encodeURIComponent(`[HOKI Sample Kit Order] ${sampleSeries} - ${sampleRecipient}`)}&body=${encodeURIComponent(
+                        `Trial Sample Box Order:\nRecipient: ${sampleRecipient}\nAddress: ${sampleAddress}\nTarget Series: ${sampleSeries}\nEmail: ${sampleEmail}\nPhone: ${samplePhone}`
+                      )}`}
+                      className="px-5 py-2 rounded-full bg-[#006e21] text-white text-[11px] font-bold uppercase tracking-wider hover:bg-[#005a1b] cursor-pointer shadow-bubble-sm transition-all flex items-center gap-1.5"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>Notify Lab via Email</span>
+                    </a>
+                    <button
+                      onClick={() => {
+                        setSampleRequested(false);
+                        setSampleRecipient('');
+                        setSampleAddress('');
+                        setSampleEmail('');
+                        setSamplePhone('');
+                      }}
+                      className="px-5 py-2 rounded-full bg-[#00356a] text-white text-[11px] font-bold uppercase tracking-wider hover:bg-[#002244] cursor-pointer shadow-bubble-sm transition-all"
+                    >
+                      Request Another Sample Kit
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <form
@@ -570,19 +590,30 @@ export const ContactPage: React.FC = () => {
                   <p className="text-[11px] text-[#00356a]/75 mt-1 leading-relaxed">
                     Plan <span className="font-semibold text-[#00356a]">"{drawingFileName}"</span> from <span className="font-semibold text-[#00356a]">{drawingName || 'Engineer'}</span> has been registered in the <span className="font-bold text-[#006e21]">Recent Structural Consultation Inquiries</span> queue. A senior structural consultant will review the calculations.
                   </p>
-                  <button
-                    onClick={() => {
-                      setDrawingSubmitted(false);
-                      setDrawingFileName('');
-                      setDrawingName('');
-                      setDrawingFirm('');
-                      setDrawingEmail('');
-                      setDrawingPhone('');
-                    }}
-                    className="mt-4 px-5 py-2 rounded-full bg-[#00356a] text-white text-[11px] font-bold uppercase tracking-wider hover:bg-[#002244] cursor-pointer shadow-bubble-sm transition-all"
-                  >
-                    Upload Another Drawing
-                  </button>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <a
+                      href={`mailto:engineering@hoki-fiber.com?subject=${encodeURIComponent(`[HOKI CAD Drawing Review] ${drawingName || 'Engineer'} - ${drawingFirm || 'Firm'}`)}&body=${encodeURIComponent(
+                        `Drawing Review Submission:\nEngineer Name: ${drawingName}\nFirm: ${drawingFirm}\nEmail: ${drawingEmail}\nPhone: ${drawingPhone}\nDrawing Name: ${drawingFileName}`
+                      )}`}
+                      className="px-5 py-2 rounded-full bg-[#006e21] text-white text-[11px] font-bold uppercase tracking-wider hover:bg-[#005a1b] cursor-pointer shadow-bubble-sm transition-all flex items-center gap-1.5"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>Notify Engineering Desk</span>
+                    </a>
+                    <button
+                      onClick={() => {
+                        setDrawingSubmitted(false);
+                        setDrawingFileName('');
+                        setDrawingName('');
+                        setDrawingFirm('');
+                        setDrawingEmail('');
+                        setDrawingPhone('');
+                      }}
+                      className="px-5 py-2 rounded-full bg-[#00356a] text-white text-[11px] font-bold uppercase tracking-wider hover:bg-[#002244] cursor-pointer shadow-bubble-sm transition-all"
+                    >
+                      Upload Another Drawing
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <form
@@ -769,19 +800,30 @@ export const ContactPage: React.FC = () => {
                   <p className="text-[11px] text-[#00356a]/75 mt-1 leading-relaxed">
                     Application for <span className="font-semibold text-[#00356a]">{partnerCompany}</span> ({partnerCountry}) has been recorded in the <span className="font-bold text-[#006e21]">Recent Structural Consultation Inquiries</span> queue. Our management desk will review distribution capabilities and follow up directly.
                   </p>
-                  <button
-                    onClick={() => {
-                      setPartnerAppSubmitted(false);
-                      setPartnerCompany('');
-                      setPartnerCountry('');
-                      setPartnerOfficer('');
-                      setPartnerEmail('');
-                      setPartnerNotes('');
-                    }}
-                    className="mt-4 px-5 py-2 rounded-full bg-[#00356a] text-white text-[11px] font-bold uppercase tracking-wider hover:bg-[#002244] cursor-pointer shadow-bubble-sm transition-all"
-                  >
-                    Submit Another Application
-                  </button>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <a
+                      href={`mailto:partner@hoki-fiber.com?subject=${encodeURIComponent(`[HOKI Partner Application] ${partnerCompany} (${partnerCountry})`)}&body=${encodeURIComponent(
+                        `Authorized Partner Application:\nCompany: ${partnerCompany}\nCountry: ${partnerCountry}\nContact Officer: ${partnerOfficer}\nEmail: ${partnerEmail}\nNotes / Footprint: ${partnerNotes}`
+                      )}`}
+                      className="px-5 py-2 rounded-full bg-[#006e21] text-white text-[11px] font-bold uppercase tracking-wider hover:bg-[#005a1b] cursor-pointer shadow-bubble-sm transition-all flex items-center gap-1.5"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>Email Partner Desk</span>
+                    </a>
+                    <button
+                      onClick={() => {
+                        setPartnerAppSubmitted(false);
+                        setPartnerCompany('');
+                        setPartnerCountry('');
+                        setPartnerOfficer('');
+                        setPartnerEmail('');
+                        setPartnerNotes('');
+                      }}
+                      className="px-5 py-2 rounded-full bg-[#00356a] text-white text-[11px] font-bold uppercase tracking-wider hover:bg-[#002244] cursor-pointer shadow-bubble-sm transition-all"
+                    >
+                      Submit Another Application
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <form
