@@ -265,7 +265,7 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
               Manage Visuals: {article.title}
             </h3>
             <p className="text-xs text-[#00356a]/70 mt-0.5">
-              Change hero header image, manage ASTM/EN test diagrams, or batch upload directly to Supabase Storage.
+              Change hero header image, manage ASTM/EN test diagrams, or batch upload optimized photos.
             </p>
           </div>
           <button
@@ -342,7 +342,7 @@ export const QuickArticlePhotoManagerModal: React.FC<QuickArticlePhotoManagerMod
                 </div>
                 <div className="text-[11px] text-[#00356a]/70 flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-[#006e21]" />
-                  <span>Stored on Supabase Storage 'media' bucket with permanent CDN caching.</span>
+                  <span>Stored in media asset library with instant client caching.</span>
                 </div>
               </div>
             </div>

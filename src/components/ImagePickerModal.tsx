@@ -33,7 +33,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
   onClose,
   onSelectImage,
   title = 'Select or Upload Image',
-  subtitle = 'Choose from media library or upload directly to Supabase Storage',
+  subtitle = 'Choose from local media library or upload new compressed assets',
   defaultCategory = 'all',
   currentSelectedUrl = ''
 }) => {
@@ -76,7 +76,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
-    setUploadProgressMsg(`Uploading ${files.length} file(s) to Supabase Storage 'media' bucket...`);
+    setUploadProgressMsg(`Processing and optimizing ${files.length} file(s)...`);
 
     try {
       let lastUploaded: MediaItem | null = null;
@@ -84,7 +84,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
         const file = files[i];
         const category =
           selectedCategory !== 'all' ? (selectedCategory as MediaItem['category']) : 'general';
-        setUploadProgressMsg(`Uploading "${file.name}" (${i + 1}/${files.length})...`);
+        setUploadProgressMsg(`Optimizing "${file.name}" (${i + 1}/${files.length})...`);
         const result = await uploadImageFile(file, category);
         lastUploaded = result;
       }
@@ -92,12 +92,12 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
       if (lastUploaded) {
         setSelectedItem(lastUploaded);
         setActiveTab('library');
-        setUploadProgressMsg('Upload complete! File stored in Supabase.');
+        setUploadProgressMsg('Upload complete! Image saved to media library.');
         setTimeout(() => setUploadProgressMsg(null), 3000);
       }
     } catch (err) {
       console.error('Upload failed:', err);
-      setUploadProgressMsg('Error uploading image. Please check Supabase credentials.');
+      setUploadProgressMsg('Error uploading image.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -160,7 +160,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-[#006e21] uppercase tracking-wider flex items-center gap-1">
                   <Database className="w-3 h-3" />
-                  <span>Supabase Storage Bucket: 'media'</span>
+                  <span>Local Media Library</span>
                 </span>
               </div>
               <h3 className="text-base sm:text-lg font-bold text-[#00356a]">{title}</h3>
@@ -303,8 +303,8 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
               {isDragging && (
                 <div className="p-8 rounded-3xl border-2 border-dashed border-[#006e21] bg-[#006e21]/5 text-center flex flex-col items-center justify-center animate-pulse">
                   <CloudUpload className="w-10 h-10 text-[#006e21] mb-2" />
-                  <p className="text-sm font-bold text-[#006e21]">Drop image files here to upload to Supabase Storage</p>
-                  <p className="text-xs text-[#00356a]/60 mt-1">Bucket: 'media' · Supports PNG, JPG, WEBP, SVG</p>
+                  <p className="text-sm font-bold text-[#006e21]">Drop image files here to optimize & add to library</p>
+                  <p className="text-xs text-[#00356a]/60 mt-1">Supports PNG, JPG, WEBP, SVG</p>
                 </div>
               )}
 
@@ -314,7 +314,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
                   <ImageIcon className="w-12 h-12 text-[#00356a]/30 mx-auto mb-3" />
                   <h4 className="text-sm font-bold text-[#00356a]">No images found</h4>
                   <p className="text-xs text-[#00356a]/60 mt-1 max-w-sm mx-auto">
-                    {searchQuery ? `No images match query "${searchQuery}"` : 'Upload your first batch of images to the Supabase media bucket.'}
+                    {searchQuery ? `No images match query "${searchQuery}"` : 'Upload your first batch of images to the media library.'}
                   </p>
                   <button
                     onClick={() => fileInputRef.current?.click()}
@@ -398,7 +398,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
                   Drag & Drop Images Here
                 </h4>
                 <p className="text-xs text-[#00356a]/70 max-w-md mx-auto mb-4">
-                  Files are automatically uploaded directly to your Supabase Storage <span className="font-bold text-[#006e21]">'media'</span> bucket.
+                  Files are automatically compressed, optimized, and saved into your local media asset library.
                 </p>
 
                 <div className="flex items-center gap-2">
@@ -448,7 +448,7 @@ export const ImagePickerModal: React.FC<ImagePickerModalProps> = ({
                   />
                 </div>
                 <p className="text-[11px] text-[#00356a]/60 mt-2">
-                  Paste any public CDN URL, Supabase storage URL, or relative asset path (`/images/...`).
+                  Paste any public image URL, CDN link, or relative asset path (`/images/...`).
                 </p>
               </div>
 
