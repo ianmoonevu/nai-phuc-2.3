@@ -1,7 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import {
   PROJECT_CASES,
@@ -11,12 +10,9 @@ import {
   INITIAL_ABOUT_INFO,
   LEADERSHIP_HEADS,
   ADVISORY_BOARD
-} from './src/data/mockData.ts';
+} from './src/data/mockData';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = path.join(process.cwd(), 'server_data');
 
 // Ensure data storage directory exists
@@ -449,6 +445,14 @@ async function startServer() {
     res.json(updated);
   });
 
+  app.post('/api/branding', (req: Request, res: Response) => {
+    const updates = req.body;
+    const current = readDataFile('branding.json', DEFAULT_BRANDING);
+    const updated = { ...current, ...updates };
+    writeDataFile('branding.json', updated);
+    res.json(updated);
+  });
+
   app.post('/api/branding/reset', (req: Request, res: Response) => {
     writeDataFile('branding.json', DEFAULT_BRANDING);
     res.json(DEFAULT_BRANDING);
@@ -472,6 +476,22 @@ async function startServer() {
     const updated = [newRecord, ...consultations];
     writeDataFile('consultations.json', updated);
     res.status(201).json(newRecord);
+  });
+
+  app.put('/api/consultations/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const updates = req.body;
+    const consultations = readDataFile<any[]>('consultations.json', INITIAL_CONSULTATIONS);
+    const index = consultations.findIndex((c) => c.id === id);
+    if (index !== -1) {
+      consultations[index] = { ...consultations[index], ...updates };
+      writeDataFile('consultations.json', consultations);
+      return res.json(consultations[index]);
+    }
+    const created = { ...updates, id };
+    consultations.unshift(created);
+    writeDataFile('consultations.json', consultations);
+    res.json(created);
   });
 
   app.patch('/api/consultations/:id/status', (req: Request, res: Response) => {
@@ -839,6 +859,9 @@ async function startServer() {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req: Request, res: Response) => {
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
