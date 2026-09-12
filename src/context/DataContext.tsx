@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   ProjectCaseStudy,
   JournalArticle,
@@ -255,6 +255,9 @@ interface DataContextType {
   mediaItems: MediaItem[];
   consultationRequests: ConsultationRequest[];
   branding: SiteBranding;
+  isServerSyncing: boolean;
+  lastServerSyncTime: string | null;
+  refreshServerData: () => Promise<void>;
   updateBranding: (updated: Partial<SiteBranding>) => void;
   resetBranding: () => void;
   updateProject: (id: string, updated: Partial<ProjectCaseStudy>) => void;
@@ -268,13 +271,13 @@ interface DataContextType {
   updateMediaItem: (id: string, updated: Partial<MediaItem>) => void;
   replaceMediaItem: (id: string, newUrl: string, newName?: string) => void;
   deleteMediaItem: (id: string) => void;
-  addConsultationRequest: (request: Omit<ConsultationRequest, 'id' | 'submittedAt'>) => ConsultationRequest;
+  addConsultationRequest: (request: Omit<ConsultationRequest, 'id' | 'submittedAt'>) => Promise<ConsultationRequest>;
   updateConsultationStatus: (id: string, status: ConsultationRequest['status']) => void;
   deleteConsultationRequest: (id: string) => void;
   resetToDefaults: () => void;
   toggleProjectHighlight: (id: string) => void;
   exportBackupData: (type?: 'all' | 'projects' | 'knowledge') => any;
-  importBackupData: (payload: any, mode?: 'merge' | 'replace') => { success: boolean; projectCount: number; articleCount: number; message: string };
+  importBackupData: (payload: any, mode?: 'merge' | 'replace') => Promise<{ success: boolean; projectCount: number; articleCount: number; message: string }>;
   isAdminAuthenticated: boolean;
   loginAdmin: (id: string, pass: string) => boolean;
   logoutAdmin: () => void;
@@ -370,6 +373,11 @@ const DEFAULT_BRANDING: SiteBranding = {
 };
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isServerSyncing, setIsServerSyncing] = useState<boolean>(false);
+  const [lastServerSyncTime, setLastServerSyncTime] = useState<string | null>(null);
+  const isFetchingRef = useRef<boolean>(false);
+
+  // Initial local state with fallback
   const [projects, setProjects] = useState<ProjectCaseStudy[]>(() => {
     try {
       const stored = localStorage.getItem(PROJECTS_STORAGE_KEY);
@@ -383,7 +391,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch {
-      // fallback to mock
+      // fallback
     }
     return PROJECT_CASES;
   });
@@ -393,12 +401,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem(ARTICLES_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
-      // fallback to mock
+      // fallback
     }
     return JOURNAL_ARTICLES;
   });
@@ -408,9 +414,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem(MEDIA_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
       // fallback
@@ -423,9 +427,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem(CONSULTATIONS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
       // fallback
@@ -457,40 +459,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return DEFAULT_BRANDING;
   });
 
-  // Sync favicon with DOM
-  useEffect(() => {
-    const iconUrl = branding.faviconUrl || '/favicon.svg';
-    let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.head.appendChild(link);
-    }
-    link.href = iconUrl;
-  }, [branding.faviconUrl]);
-
-  const updateBranding = (updated: Partial<SiteBranding>) => {
-    setBranding((prev) => {
-      const next = { ...prev, ...updated };
-      try {
-        localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(next));
-      } catch (e) {
-        console.warn('Could not save branding to localStorage:', e);
-      }
-      return next;
-    });
-  };
-
-  const resetBranding = () => {
-    setBranding(DEFAULT_BRANDING);
-    try {
-      localStorage.removeItem(BRANDING_STORAGE_KEY);
-    } catch (e) {
-      console.warn('Could not reset branding in localStorage:', e);
-    }
-  };
-
-  // EPC Partners State (Main Page)
   const [epcPartners, setEpcPartners] = useState<StrategicPartner[]>(() => {
     try {
       const stored = localStorage.getItem(EPC_PARTNERS_STORAGE_KEY);
@@ -514,7 +482,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return INITIAL_EPC_CONFIG;
   });
 
-  // About Us State (Origin, Story, Leadership, Advisory Board)
   const [aboutInfo, setAboutInfo] = useState<AboutPageInfo>(() => {
     try {
       const stored = localStorage.getItem(ABOUT_INFO_STORAGE_KEY);
@@ -551,58 +518,159 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return ADVISORY_BOARD;
   });
 
-  // EPC & About Us LocalStorage synchronization
-  useEffect(() => {
-    try {
-      localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(epcPartners));
-    } catch (e) {
-      console.warn('Could not save epcPartners to localStorage:', e);
-    }
-  }, [epcPartners]);
+  // Server data fetcher
+  const refreshServerData = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    setIsServerSyncing(true);
 
-  useEffect(() => {
     try {
-      localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(epcSectionConfig));
-    } catch (e) {
-      console.warn('Could not save epcSectionConfig to localStorage:', e);
+      const res = await fetch('/api/data', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.projects && Array.isArray(data.projects)) {
+          setProjects(data.projects);
+          localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(data.projects));
+        }
+        if (data.articles && Array.isArray(data.articles)) {
+          setArticles(data.articles);
+          localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(data.articles));
+        }
+        if (data.branding && typeof data.branding === 'object') {
+          setBranding(data.branding);
+          localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(data.branding));
+        }
+        if (data.consultationRequests && Array.isArray(data.consultationRequests)) {
+          setConsultationRequests(data.consultationRequests);
+          localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(data.consultationRequests));
+        }
+        if (data.mediaItems && Array.isArray(data.mediaItems)) {
+          setMediaItems(data.mediaItems);
+          try {
+            localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(data.mediaItems));
+          } catch {
+            // ignore quota limit
+          }
+        }
+        if (data.epcPartners && Array.isArray(data.epcPartners)) {
+          setEpcPartners(data.epcPartners);
+          localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(data.epcPartners));
+        }
+        if (data.epcSectionConfig && typeof data.epcSectionConfig === 'object') {
+          setEpcSectionConfig(data.epcSectionConfig);
+          localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(data.epcSectionConfig));
+        }
+        if (data.aboutInfo && typeof data.aboutInfo === 'object') {
+          setAboutInfo(data.aboutInfo);
+          localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(data.aboutInfo));
+        }
+        if (data.leadershipHeads && Array.isArray(data.leadershipHeads)) {
+          setLeadershipHeads(data.leadershipHeads);
+          localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(data.leadershipHeads));
+        }
+        if (data.advisoryMembers && Array.isArray(data.advisoryMembers)) {
+          setAdvisoryMembers(data.advisoryMembers);
+          localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(data.advisoryMembers));
+        }
+        setLastServerSyncTime(new Date().toLocaleTimeString());
+      }
+    } catch (err) {
+      console.warn('Server sync fetch failed; operating on local cache:', err);
+    } finally {
+      setIsServerSyncing(false);
+      isFetchingRef.current = false;
     }
-  }, [epcSectionConfig]);
+  }, []);
 
+  // Fetch on mount + periodic sync every 12s + sync on window focus
   useEffect(() => {
-    try {
-      localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(aboutInfo));
-    } catch (e) {
-      console.warn('Could not save aboutInfo to localStorage:', e);
-    }
-  }, [aboutInfo]);
+    refreshServerData();
 
+    const intervalId = setInterval(() => {
+      refreshServerData();
+    }, 12000);
+
+    const onFocus = () => {
+      refreshServerData();
+    };
+
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [refreshServerData]);
+
+  // Sync favicon with DOM
   useEffect(() => {
-    try {
-      localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(leadershipHeads));
-    } catch (e) {
-      console.warn('Could not save leadershipHeads to localStorage:', e);
+    const iconUrl = branding.faviconUrl || '/favicon.svg';
+    let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
     }
-  }, [leadershipHeads]);
+    link.href = iconUrl;
+  }, [branding.faviconUrl]);
 
-  useEffect(() => {
+  // --- BRANDING ACTIONS ---
+  const updateBranding = (updated: Partial<SiteBranding>) => {
+    setBranding((prev) => {
+      const next = { ...prev, ...updated };
+      try {
+        localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Could not save branding to localStorage:', e);
+      }
+      return next;
+    });
+
+    // Push to server
+    fetch('/api/branding', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch((e) => console.warn('Server updateBranding error:', e));
+  };
+
+  const resetBranding = () => {
+    setBranding(DEFAULT_BRANDING);
     try {
-      localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(advisoryMembers));
+      localStorage.removeItem(BRANDING_STORAGE_KEY);
     } catch (e) {
-      console.warn('Could not save advisoryMembers to localStorage:', e);
+      console.warn('Could not reset branding in localStorage:', e);
     }
-  }, [advisoryMembers]);
 
-  // EPC Partners mutation handlers
+    fetch('/api/branding/reset', { method: 'POST' }).catch((e) =>
+      console.warn('Server resetBranding error:', e)
+    );
+  };
+
+  // --- EPC PARTNERS ACTIONS ---
   const updateEpcPartner = (id: string, updated: Partial<StrategicPartner>) => {
     setEpcPartners((prev) => {
-      return prev.map((p) => {
+      const next = prev.map((p) => {
         if (p.id === id) {
-          const subtitle = updated.subtitle !== undefined ? updated.subtitle : (updated.role !== undefined ? updated.role : p.subtitle);
+          const subtitle =
+            updated.subtitle !== undefined
+              ? updated.subtitle
+              : updated.role !== undefined
+              ? updated.role
+              : p.subtitle;
           return { ...p, ...updated, subtitle, role: subtitle };
         }
         return p;
       });
+      localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(next));
+      return next;
     });
+
+    fetch(`/api/epc/partners/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch((e) => console.warn('Server updateEpcPartner error:', e));
   };
 
   const addEpcPartner = (partner: Omit<StrategicPartner, 'id'>): StrategicPartner => {
@@ -612,51 +680,111 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subtitle: partner.subtitle || partner.role || 'Strategic EPC Partner',
       role: partner.subtitle || partner.role || 'Strategic EPC Partner'
     };
-    setEpcPartners((prev) => [...prev, newPartner]);
+    setEpcPartners((prev) => {
+      const next = [...prev, newPartner];
+      localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch('/api/epc/partners', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newPartner)
+    }).catch((e) => console.warn('Server addEpcPartner error:', e));
+
     return newPartner;
   };
 
   const deleteEpcPartner = (id: string) => {
-    setEpcPartners((prev) => prev.filter((p) => p.id !== id));
+    setEpcPartners((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/epc/partners/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    }).catch((e) => console.warn('Server deleteEpcPartner error:', e));
   };
 
   const reorderEpcPartners = (reordered: StrategicPartner[]) => {
     setEpcPartners(reordered);
+    localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(reordered));
+
+    fetch('/api/epc/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partners: reordered })
+    }).catch((e) => console.warn('Server reorderEpcPartners error:', e));
   };
 
   const resetEpcPartners = () => {
     setEpcPartners(INITIAL_STRATEGIC_PARTNERS);
     setEpcSectionConfig(INITIAL_EPC_CONFIG);
-    try {
-      localStorage.removeItem(EPC_PARTNERS_STORAGE_KEY);
-      localStorage.removeItem(EPC_CONFIG_STORAGE_KEY);
-    } catch (e) {
-      console.warn('Could not reset epcPartners in localStorage:', e);
-    }
+    localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(INITIAL_STRATEGIC_PARTNERS));
+    localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(INITIAL_EPC_CONFIG));
+
+    fetch('/api/epc/reset', { method: 'POST' }).catch((e) =>
+      console.warn('Server resetEpcPartners error:', e)
+    );
   };
 
   const updateEpcSectionConfig = (updated: Partial<EpcSectionConfig>) => {
-    setEpcSectionConfig((prev) => ({ ...prev, ...updated }));
+    setEpcSectionConfig((prev) => {
+      const next = { ...prev, ...updated };
+      localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch('/api/epc/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch((e) => console.warn('Server updateEpcSectionConfig error:', e));
   };
 
-  // About Us Information mutation handlers
+  // --- ABOUT US, LEADERSHIP & ADVISORY ACTIONS ---
   const updateAboutInfo = (updated: Partial<AboutPageInfo>) => {
-    setAboutInfo((prev) => ({ ...prev, ...updated }));
+    setAboutInfo((prev) => {
+      const next = { ...prev, ...updated };
+      localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch('/api/about/info', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch((e) => console.warn('Server updateAboutInfo error:', e));
   };
 
   const resetAboutInfo = () => {
     setAboutInfo(INITIAL_ABOUT_INFO);
-    try {
-      localStorage.removeItem(ABOUT_INFO_STORAGE_KEY);
-    } catch (e) {
-      console.warn('Could not reset aboutInfo in localStorage:', e);
-    }
+    setLeadershipHeads(LEADERSHIP_HEADS);
+    setAdvisoryMembers(ADVISORY_BOARD);
+    localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(INITIAL_ABOUT_INFO));
+    localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(LEADERSHIP_HEADS));
+    localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(ADVISORY_BOARD));
+
+    fetch('/api/about/reset', { method: 'POST' }).catch((e) =>
+      console.warn('Server resetAboutInfo error:', e)
+    );
   };
 
   const updateLeadershipHead = (idOrName: string, updated: Partial<LeadershipHead>) => {
-    setLeadershipHeads((prev) =>
-      prev.map((h) => (h.id === idOrName || h.name === idOrName ? { ...h, ...updated } : h))
-    );
+    setLeadershipHeads((prev) => {
+      const next = prev.map((h) =>
+        h.id === idOrName || h.name === idOrName ? { ...h, ...updated } : h
+      );
+      localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/leadership/${encodeURIComponent(idOrName)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch((e) => console.warn('Server updateLeadershipHead error:', e));
   };
 
   const addLeadershipHead = (head: Omit<LeadershipHead, 'id'>): LeadershipHead => {
@@ -664,27 +792,52 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...head,
       id: `lead-${Date.now()}`
     };
-    setLeadershipHeads((prev) => [...prev, newHead]);
+    setLeadershipHeads((prev) => {
+      const next = [...prev, newHead];
+      localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch('/api/leadership', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newHead)
+    }).catch((e) => console.warn('Server addLeadershipHead error:', e));
+
     return newHead;
   };
 
   const deleteLeadershipHead = (idOrName: string) => {
-    setLeadershipHeads((prev) => prev.filter((h) => h.id !== idOrName && h.name !== idOrName));
+    setLeadershipHeads((prev) => {
+      const next = prev.filter((h) => h.id !== idOrName && h.name !== idOrName);
+      localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/leadership/${encodeURIComponent(idOrName)}`, {
+      method: 'DELETE'
+    }).catch((e) => console.warn('Server deleteLeadershipHead error:', e));
   };
 
   const resetLeadershipHeads = () => {
     setLeadershipHeads(LEADERSHIP_HEADS);
-    try {
-      localStorage.removeItem(LEADERSHIP_STORAGE_KEY);
-    } catch (e) {
-      console.warn('Could not reset leadershipHeads in localStorage:', e);
-    }
+    localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(LEADERSHIP_HEADS));
   };
 
   const updateAdvisoryMember = (idOrName: string, updated: Partial<AdvisoryMember>) => {
-    setAdvisoryMembers((prev) =>
-      prev.map((m) => (m.id === idOrName || m.name === idOrName ? { ...m, ...updated } : m))
-    );
+    setAdvisoryMembers((prev) => {
+      const next = prev.map((m) =>
+        m.id === idOrName || m.name === idOrName ? { ...m, ...updated } : m
+      );
+      localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/advisory/${encodeURIComponent(idOrName)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch((e) => console.warn('Server updateAdvisoryMember error:', e));
   };
 
   const addAdvisoryMember = (member: Omit<AdvisoryMember, 'id'>): AdvisoryMember => {
@@ -692,102 +845,137 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...member,
       id: `adv-${Date.now()}`
     };
-    setAdvisoryMembers((prev) => [...prev, newMember]);
+    setAdvisoryMembers((prev) => {
+      const next = [...prev, newMember];
+      localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch('/api/advisory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newMember)
+    }).catch((e) => console.warn('Server addAdvisoryMember error:', e));
+
     return newMember;
   };
 
   const deleteAdvisoryMember = (idOrName: string) => {
-    setAdvisoryMembers((prev) => prev.filter((m) => m.id !== idOrName && m.name !== idOrName));
+    setAdvisoryMembers((prev) => {
+      const next = prev.filter((m) => m.id !== idOrName && m.name !== idOrName);
+      localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/advisory/${encodeURIComponent(idOrName)}`, {
+      method: 'DELETE'
+    }).catch((e) => console.warn('Server deleteAdvisoryMember error:', e));
   };
 
   const resetAdvisoryMembers = () => {
     setAdvisoryMembers(ADVISORY_BOARD);
-    try {
-      localStorage.removeItem(ADVISORY_STORAGE_KEY);
-    } catch (e) {
-      console.warn('Could not reset advisoryMembers in localStorage:', e);
-    }
+    localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(ADVISORY_BOARD));
   };
 
-  // Sync to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
-    } catch (e) {
-      console.warn('Could not save projects to localStorage:', e);
-    }
-  }, [projects]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(articles));
-    } catch (e) {
-      console.warn('Could not save articles to localStorage:', e);
-    }
-  }, [articles]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(mediaItems));
-    } catch (e) {
-      console.warn('Could not save media items to localStorage (quota exceeded):', e);
-      try {
-        // Fallback: prune oldest items to ensure critical updates are saved
-        const pruned = mediaItems.slice(0, 25);
-        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(pruned));
-      } catch {
-        // Silently preserve in-memory
-      }
-    }
-  }, [mediaItems]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(consultationRequests));
-    } catch (e) {
-      console.warn('Could not save consultations to localStorage:', e);
-    }
-  }, [consultationRequests]);
-
+  // --- PROJECTS ACTIONS ---
   const updateProject = (id: string, updated: Partial<ProjectCaseStudy>) => {
     setProjects((prev) => {
-      return prev.map((p) => {
-        if (p.id === id) {
-          return { ...p, ...updated };
-        }
-        return p;
-      });
+      const next = prev.map((p) => (p.id === id ? { ...p, ...updated } : p));
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
+      return next;
     });
+
+    fetch(`/api/projects/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch((e) => console.warn('Server updateProject error:', e));
   };
 
   const addProject = (newProject: ProjectCaseStudy) => {
-    setProjects((prev) => [newProject, ...prev]);
+    setProjects((prev) => {
+      const next = [newProject, ...prev];
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newProject)
+    }).catch((e) => console.warn('Server addProject error:', e));
   };
 
   const deleteProject = (id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
+    setProjects((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/projects/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    }).catch((e) => console.warn('Server deleteProject error:', e));
   };
 
+  const toggleProjectHighlight = (id: string) => {
+    setProjects((prev) => {
+      const updated = prev.map((p) => (p.id === id ? { ...p, isHighlight: !p.isHighlight } : p));
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+
+    fetch(`/api/projects/${encodeURIComponent(id)}/highlight`, {
+      method: 'PATCH'
+    }).catch((e) => console.warn('Server toggleProjectHighlight error:', e));
+  };
+
+  // --- ARTICLES ACTIONS ---
   const updateArticle = (id: string, updated: Partial<JournalArticle>) => {
-    setArticles((prev) =>
-      prev.map((a) => {
-        if (a.id === id) {
-          return { ...a, ...updated };
-        }
-        return a;
-      })
-    );
+    setArticles((prev) => {
+      const next = prev.map((a) => (a.id === id ? { ...a, ...updated } : a));
+      localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/articles/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch((e) => console.warn('Server updateArticle error:', e));
   };
 
   const addArticle = (newArticle: JournalArticle) => {
-    setArticles((prev) => [newArticle, ...prev]);
+    setArticles((prev) => {
+      const next = [newArticle, ...prev];
+      localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch('/api/articles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newArticle)
+    }).catch((e) => console.warn('Server addArticle error:', e));
   };
 
   const deleteArticle = (id: string) => {
-    setArticles((prev) => prev.filter((a) => a.id !== id));
+    setArticles((prev) => {
+      const next = prev.filter((a) => a.id !== id);
+      localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/articles/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    }).catch((e) => console.warn('Server deleteArticle error:', e));
   };
 
-  const uploadImageFile = async (file: File, category: MediaItem['category'] = 'general'): Promise<MediaItem> => {
+  // --- MEDIA ACTIONS ---
+  const uploadImageFile = async (
+    file: File,
+    category: MediaItem['category'] = 'general'
+  ): Promise<MediaItem> => {
     try {
       const optimized = await compressAndOptimizeImage(file);
       const newMedia: MediaItem = {
@@ -796,11 +984,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         url: optimized.dataUrl,
         size: optimized.size,
         dimensions: optimized.dimensions,
-        uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        uploadedAt: new Date().toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        }),
         category
       };
 
       setMediaItems((prev) => [newMedia, ...prev]);
+
+      fetch('/api/media', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMedia)
+      }).catch((e) => console.warn('Server uploadImageFile error:', e));
+
       return newMedia;
     } catch (err) {
       console.error('Failed to compress and upload image:', err);
@@ -815,10 +1014,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             url: dataUrl,
             size: `${sizeInKb} KB`,
             dimensions: 'User Upload',
-            uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            uploadedAt: new Date().toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            }),
             category
           };
           setMediaItems((prev) => [newMedia, ...prev]);
+
+          fetch('/api/media', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newMedia)
+          }).catch((e) => console.warn('Server uploadImageFile error:', e));
+
           resolve(newMedia);
         };
         reader.onerror = (e) => reject(e);
@@ -829,17 +1039,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addMediaItem = (item: MediaItem) => {
     setMediaItems((prev) => [item, ...prev]);
+
+    fetch('/api/media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item)
+    }).catch((e) => console.warn('Server addMediaItem error:', e));
   };
 
   const updateMediaItem = (id: string, updated: Partial<MediaItem>) => {
-    setMediaItems((prev) =>
-      prev.map((m) => {
-        if (m.id === id) {
-          return { ...m, ...updated };
-        }
-        return m;
-      })
-    );
+    setMediaItems((prev) => prev.map((m) => (m.id === id ? { ...m, ...updated } : m)));
+
+    fetch(`/api/media/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch((e) => console.warn('Server updateMediaItem error:', e));
   };
 
   const replaceMediaItem = (id: string, newUrl: string, newName?: string) => {
@@ -852,17 +1067,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...m,
             url: newUrl,
             name: newName || m.name,
-            uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            uploadedAt: new Date().toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })
           };
         }
         return m;
       })
     );
 
+    fetch(`/api/media/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: newUrl, name: newName })
+    }).catch((e) => console.warn('Server replaceMediaItem error:', e));
+
     if (oldUrl) {
-      // Automatically update any projects referencing the old URL
-      setProjects((prev) =>
-        prev.map((p) => {
+      // Automatically update projects referencing the old URL
+      setProjects((prev) => {
+        const next = prev.map((p) => {
           let updatedProj = { ...p };
           let changed = false;
           if (p.image === oldUrl) {
@@ -882,12 +1107,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           return changed ? updatedProj : p;
-        })
-      );
+        });
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
 
-      // Automatically update any articles referencing the old URL
-      setArticles((prev) =>
-        prev.map((a) => {
+      // Automatically update articles referencing the old URL
+      setArticles((prev) => {
+        const next = prev.map((a) => {
           let updatedArt = { ...a };
           let changed = false;
           if (a.image === oldUrl) {
@@ -907,40 +1134,81 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           return changed ? updatedArt : a;
-        })
-      );
+        });
+        localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
     }
   };
 
   const deleteMediaItem = (id: string) => {
     setMediaItems((prev) => prev.filter((m) => m.id !== id));
+
+    fetch(`/api/media/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    }).catch((e) => console.warn('Server deleteMediaItem error:', e));
   };
 
-  const addConsultationRequest = (request: Omit<ConsultationRequest, 'id' | 'submittedAt'>): ConsultationRequest => {
+  // --- CONSULTATIONS & LEADS ACTIONS ---
+  const addConsultationRequest = async (
+    request: Omit<ConsultationRequest, 'id' | 'submittedAt'>
+  ): Promise<ConsultationRequest> => {
     const newRecord: ConsultationRequest = {
       ...request,
       id: `req-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       submittedAt: new Date().toISOString()
     };
-    setConsultationRequests((prev) => [newRecord, ...prev]);
+
+    setConsultationRequests((prev) => {
+      const next = [newRecord, ...prev];
+      localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await fetch('/api/consultations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRecord)
+      });
+      if (res.ok) {
+        const serverSaved = await res.json();
+        return serverSaved;
+      }
+    } catch (e) {
+      console.warn('Server addConsultationRequest error:', e);
+    }
+
     return newRecord;
   };
 
   const updateConsultationStatus = (id: string, status: ConsultationRequest['status']) => {
     setConsultationRequests((prev) => {
-      return prev.map((c) => {
-        if (c.id === id) {
-          return { ...c, status };
-        }
-        return c;
-      });
+      const next = prev.map((c) => (c.id === id ? { ...c, status } : c));
+      localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
+      return next;
     });
+
+    fetch(`/api/consultations/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    }).catch((e) => console.warn('Server updateConsultationStatus error:', e));
   };
 
   const deleteConsultationRequest = (id: string) => {
-    setConsultationRequests((prev) => prev.filter((c) => c.id !== id));
+    setConsultationRequests((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    fetch(`/api/consultations/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    }).catch((e) => console.warn('Server deleteConsultationRequest error:', e));
   };
 
+  // --- ADMIN AUTH ---
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     try {
       return sessionStorage.getItem(ADMIN_AUTH_KEY) === 'true';
@@ -972,6 +1240,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // --- SYSTEM RESET & BACKUP ACTIONS ---
   const resetToDefaults = () => {
     setProjects(PROJECT_CASES);
     setArticles(JOURNAL_ARTICLES);
@@ -983,32 +1252,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAboutInfo(INITIAL_ABOUT_INFO);
     setLeadershipHeads(LEADERSHIP_HEADS);
     setAdvisoryMembers(ADVISORY_BOARD);
-    try {
-      localStorage.removeItem(PROJECTS_STORAGE_KEY);
-      localStorage.removeItem(ARTICLES_STORAGE_KEY);
-      localStorage.removeItem(MEDIA_STORAGE_KEY);
-      localStorage.removeItem(CONSULTATIONS_STORAGE_KEY);
-      localStorage.removeItem(BRANDING_STORAGE_KEY);
-      localStorage.removeItem(EPC_PARTNERS_STORAGE_KEY);
-      localStorage.removeItem(EPC_CONFIG_STORAGE_KEY);
-      localStorage.removeItem(ABOUT_INFO_STORAGE_KEY);
-      localStorage.removeItem(LEADERSHIP_STORAGE_KEY);
-      localStorage.removeItem(ADVISORY_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-  };
 
-  const toggleProjectHighlight = (id: string) => {
-    setProjects((prev) => {
-      const updated = prev.map((p) => (p.id === id ? { ...p, isHighlight: !p.isHighlight } : p));
-      try {
-        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {
-        console.warn('Could not save highlighted project to localStorage:', e);
-      }
-      return updated;
-    });
+    localStorage.removeItem(PROJECTS_STORAGE_KEY);
+    localStorage.removeItem(ARTICLES_STORAGE_KEY);
+    localStorage.removeItem(MEDIA_STORAGE_KEY);
+    localStorage.removeItem(CONSULTATIONS_STORAGE_KEY);
+    localStorage.removeItem(BRANDING_STORAGE_KEY);
+    localStorage.removeItem(EPC_PARTNERS_STORAGE_KEY);
+    localStorage.removeItem(EPC_CONFIG_STORAGE_KEY);
+    localStorage.removeItem(ABOUT_INFO_STORAGE_KEY);
+    localStorage.removeItem(LEADERSHIP_STORAGE_KEY);
+    localStorage.removeItem(ADVISORY_STORAGE_KEY);
+
+    fetch('/api/system/reset', { method: 'POST' }).catch((e) =>
+      console.warn('Server system reset error:', e)
+    );
   };
 
   const exportBackupData = (type: 'all' | 'projects' | 'knowledge' = 'all') => {
@@ -1047,22 +1305,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const importBackupData = (
+  const importBackupData = async (
     payload: any,
     mode: 'merge' | 'replace' = 'merge'
-  ): { success: boolean; projectCount: number; articleCount: number; message: string } => {
+  ): Promise<{ success: boolean; projectCount: number; articleCount: number; message: string }> => {
     if (!payload || typeof payload !== 'object') {
-      return { success: false, projectCount: 0, articleCount: 0, message: 'Invalid JSON backup structure' };
+      return {
+        success: false,
+        projectCount: 0,
+        articleCount: 0,
+        message: 'Invalid JSON backup structure'
+      };
     }
 
     let importedProjects: ProjectCaseStudy[] = [];
     let importedArticles: JournalArticle[] = [];
 
-    // Check if payload is directly an array
     if (Array.isArray(payload)) {
       if (payload.length > 0 && ('code' in payload[0] || 'facilityType' in payload[0])) {
         importedProjects = payload;
-      } else if (payload.length > 0 && ('categorySlug' in payload[0] || 'subtitle' in payload[0])) {
+      } else if (
+        payload.length > 0 &&
+        ('categorySlug' in payload[0] || 'subtitle' in payload[0])
+      ) {
         importedArticles = payload;
       }
     } else {
@@ -1083,25 +1348,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
+    // Local optimistic update
     if (importedProjects.length > 0) {
       if (mode === 'replace') {
         setProjects(importedProjects);
-        try {
-          localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(importedProjects));
-        } catch (e) {
-          console.warn('localStorage save failed:', e);
-        }
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(importedProjects));
       } else {
         setProjects((prev) => {
           const map = new Map<string, ProjectCaseStudy>();
           prev.forEach((p) => map.set(p.id, p));
           importedProjects.forEach((p) => map.set(p.id, { ...map.get(p.id), ...p }));
           const merged = Array.from(map.values());
-          try {
-            localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(merged));
-          } catch (e) {
-            console.warn('localStorage save failed:', e);
-          }
+          localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(merged));
           return merged;
         });
       }
@@ -1110,32 +1368,41 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (importedArticles.length > 0) {
       if (mode === 'replace') {
         setArticles(importedArticles);
-        try {
-          localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(importedArticles));
-        } catch (e) {
-          console.warn('localStorage save failed:', e);
-        }
+        localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(importedArticles));
       } else {
         setArticles((prev) => {
           const map = new Map<string, JournalArticle>();
           prev.forEach((a) => map.set(a.id, a));
           importedArticles.forEach((a) => map.set(a.id, { ...map.get(a.id), ...a }));
           const merged = Array.from(map.values());
-          try {
-            localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(merged));
-          } catch (e) {
-            console.warn('localStorage save failed:', e);
-          }
+          localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(merged));
           return merged;
         });
       }
+    }
+
+    // Push backup payload to server
+    try {
+      const res = await fetch('/api/backup/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload, mode })
+      });
+      if (res.ok) {
+        const result = await res.json();
+        return result;
+      }
+    } catch (e) {
+      console.warn('Server importBackupData error:', e);
     }
 
     return {
       success: true,
       projectCount: importedProjects.length,
       articleCount: importedArticles.length,
-      message: `Successfully ${mode === 'replace' ? 'restored' : 'merged'} ${importedProjects.length} project dossiers and ${importedArticles.length} knowledge articles into active system.`
+      message: `Successfully ${
+        mode === 'replace' ? 'restored' : 'merged'
+      } ${importedProjects.length} project dossiers and ${importedArticles.length} knowledge articles into server storage.`
     };
   };
 
@@ -1147,6 +1414,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         mediaItems,
         consultationRequests,
         branding,
+        isServerSyncing,
+        lastServerSyncTime,
+        refreshServerData,
         updateBranding,
         resetBranding,
         updateProject,

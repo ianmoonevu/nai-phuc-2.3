@@ -59,7 +59,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     consultationRequests,
     addConsultationRequest,
     updateConsultationStatus,
-    deleteConsultationRequest
+    deleteConsultationRequest,
+    isServerSyncing,
+    lastServerSyncTime,
+    refreshServerData
   } = useData();
 
   // Consultation timeline view toggle: 'daily' | 'sector'
@@ -311,29 +314,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
-      {/* Local Enterprise Engine & Inquiries Export Banner */}
+      {/* Server JSON Engine & Real-Time Sync Banner */}
       <div className="p-5 rounded-3xl bg-white border border-[#e5e9ee] shadow-bubble flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-bubble-inset bg-[#006e21]/10 text-[#006e21]">
             <Database className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-extrabold text-[#00356a]">
-                HOKI Local Storage Engine
+                HOKI Server-Side JSON Storage Engine
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#006e21]/15 text-[#006e21] border border-[#006e21]/30">
-                <span className="w-2 h-2 rounded-full bg-[#006e21]" />
-                Zero-Latency Offline-First
+                <span className={`w-2 h-2 rounded-full ${isServerSyncing ? 'bg-amber-500 animate-ping' : 'bg-[#006e21]'}`} />
+                {isServerSyncing ? 'Synchronizing with Server...' : 'Live Multi-Device Sync Active'}
               </span>
+              {lastServerSyncTime && (
+                <span className="text-[10px] text-[#00356a]/60 font-mono">
+                  Synced: {lastServerSyncTime}
+                </span>
+              )}
             </div>
             <p className="text-xs text-[#00356a]/70 mt-0.5">
-              All project dossiers, knowledge monographs, and client consultation leads are saved directly to persistent local storage with instant CSV export capabilities.
+              All project dossiers, knowledge monographs, EPC partners, and client consultation leads are saved directly to server JSON files and instantly synchronized across all devices and visitors.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3 shrink-0 flex-wrap">
+          <button
+            onClick={() => refreshServerData()}
+            disabled={isServerSyncing}
+            className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-[#f4f6f8] text-[#00356a] border border-[#e5e9ee] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-bubble-sm disabled:opacity-50"
+            title="Force refresh data from server"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${isServerSyncing ? 'animate-spin text-amber-600' : 'text-[#006e21]'}`} />
+            <span>{isServerSyncing ? 'Syncing...' : 'Sync Now'}</span>
+          </button>
+
           <button
             onClick={() => handleExportCsv(false)}
             className="px-4 py-2.5 rounded-xl bg-[#006e21] hover:bg-[#005a1b] text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-bubble-sm"
