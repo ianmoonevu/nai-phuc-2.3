@@ -1,54 +1,113 @@
-# Deploy Nai Phuc CMS on TENTEN cPanel
+# Deploy HOKI Metal CMS: GitHub -> TENTEN -> hokimetal.vn
 
-This branch changes the Admin Panel from browser-only `localStorage` persistence to an Express + MySQL backend.
+This repository is the single source of truth for `hokimetal.vn`.
 
-## 1. Requirements
+Production flow:
 
-- TENTEN hosting plan with **Setup Node.js App** support.
-- Node.js 20.x recommended.
-- MySQL database and database user in cPanel.
-- HTTPS enabled for the production domain.
+```text
+GitHub main
+   -> TENTEN Hosting
+   -> Node.js server.js
+   -> MySQL
+   -> https://hokimetal.vn
+```
 
-## 2. Create the MySQL database
+Vercel is not part of the production architecture.
 
-In cPanel:
+## 1. Recommended TENTEN deployment method: GitHub repository
 
-1. Open **MySQL Databases**.
-2. Create a database.
-3. Create a database user with a strong password.
-4. Assign that user to the database with the required privileges.
+TENTEN Vibe Code Hosting / Tenten 1-Click Launch Website supports deploying directly from a GitHub repository.
 
-The application automatically creates the required tables on startup. You can also import `database/schema.sql` manually through phpMyAdmin.
+Repository:
 
-## 3. Configure environment variables
+```text
+https://github.com/ianmoonevu/nai-phuc-2.3
+```
 
-Copy `.env.example` to `.env` on the server and replace all placeholder values.
+Branch used for production:
 
-Required values:
+```text
+main
+```
+
+In TENTEN:
+
+1. Open **Tenten 1-Click Launch Website** / Vibe Code Hosting.
+2. Create a project.
+3. Select deployment from **GitHub**.
+4. Paste the repository URL above.
+5. Select `hokimetal.vn` as the application domain.
+6. Use Node.js 20.x when available.
+7. Startup file: `server.js`.
+8. Configure the production environment variables listed below.
+9. Deploy.
+
+For later code updates:
+
+1. Merge/push the change into GitHub `main`.
+2. In the TENTEN project dashboard use **Sync / Đồng bộ** to pull the latest GitHub revision.
+3. Restart the Node.js application if TENTEN does not restart it automatically.
+4. Verify `https://hokimetal.vn/api/health`.
+
+Do not upload a separate Vercel build and do not point DNS to Vercel.
+
+## 2. MySQL database
+
+Create a MySQL database and database user on TENTEN.
+
+The application creates the required tables when `server.js` starts. The schema is also available at:
+
+```text
+database/schema.sql
+```
+
+Required database values:
+
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=your_tenten_database
+DB_USER=your_tenten_database_user
+DB_PASSWORD=your_database_password
+```
+
+Make sure the database user has privileges on the selected database.
+
+## 3. Production environment variables
+
+Configure these values in the TENTEN Node.js/Vibe Code project environment. Do not commit the real values to GitHub.
 
 ```env
 NODE_ENV=production
+PORT=3000
+APP_URL=https://hokimetal.vn
+
 DB_HOST=localhost
 DB_PORT=3306
-DB_NAME=cpanel_database_name
-DB_USER=cpanel_database_user
-DB_PASSWORD=your-database-password
-SESSION_SECRET=use-a-long-random-secret-here
+DB_NAME=your_tenten_database
+DB_USER=your_tenten_database_user
+DB_PASSWORD=your_database_password
+DB_POOL_SIZE=10
+
+SESSION_SECRET=replace-with-a-long-random-secret
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=use-a-strong-admin-password
+ADMIN_PASSWORD=replace-with-a-strong-admin-password
+
 UPLOAD_DIR=uploads
+VITE_WEBHOOK_URL=
+GEMINI_API_KEY=
 ```
 
-Important:
+Notes:
 
-- Do **not** commit `.env`.
-- The old frontend password `123qwe` is no longer used.
-- `ADMIN_PASSWORD` is only used to bootstrap the admin account when that username does not already exist in MySQL. After the first successful startup and login, remove `ADMIN_PASSWORD` from the production environment if desired.
-- Keep `SESSION_SECRET` stable. Changing it logs out existing Admin sessions.
+- The application listens on `process.env.PORT`; TENTEN/cPanel can override the example `3000` value.
+- `ADMIN_PASSWORD` is only used to create the initial Admin account if that username does not already exist in MySQL.
+- After the Admin account is created and login has been verified, `ADMIN_PASSWORD` can be removed from the production environment.
+- Keep `SESSION_SECRET` stable or existing Admin sessions will be invalidated.
 
-## 4. Install and build
+## 4. Build and runtime
 
-From the application root:
+Install and verify before production deployment:
 
 ```bash
 npm install
@@ -56,38 +115,32 @@ npm run lint
 npm run build
 ```
 
-Production starts with:
+Production command:
 
 ```bash
 npm start
 ```
 
-The startup file is:
+Startup file:
 
 ```text
 server.js
 ```
 
-The server uses `process.env.PORT`, which is compatible with cPanel/Passenger-style Node hosting.
+If using classic cPanel **Setup Node.js App** instead of Vibe Code Hosting:
 
-## 5. Configure Setup Node.js App
-
-In TENTEN cPanel open **Setup Node.js App** and create/edit the application:
-
-- Node.js version: 20.x if available
+- Node.js version: 20.x
 - Application mode: Production
-- Application root: repository/application folder
-- Application URL: your production domain or subdomain
+- Application root: repository folder
+- Application URL: `hokimetal.vn`
 - Application startup file: `server.js`
 
-Install dependencies from the Node.js App interface or Terminal, then restart the application.
+## 5. Health check
 
-## 6. Verify the backend
-
-Open:
+After each deployment open:
 
 ```text
-https://your-domain.com/api/health
+https://hokimetal.vn/api/health
 ```
 
 Expected response:
@@ -99,40 +152,49 @@ Expected response:
 }
 ```
 
-If `database` is false, re-check the MySQL hostname, database name, database user, password, and user privileges.
+If the page returns 404, the domain is probably serving only static files and is not routed to the Node.js application.
 
-## 7. First Admin login and local-data migration
+If it returns HTTP 503 with `database: false`, re-check the MySQL configuration and privileges.
 
-The frontend keeps the existing browser data only as a migration/fallback source.
+## 6. First Admin login and migration of old browser data
 
-On the browser that contains the latest Admin edits:
+The previous Admin implementation saved content into browser `localStorage`.
 
-1. Deploy this server-backed version.
-2. Open the production website in that same browser.
-3. Log in to Admin using `ADMIN_USERNAME` and `ADMIN_PASSWORD` configured on the server.
-4. During successful login, any CMS content key that does not yet exist on the server is copied from the current in-browser data/default data to MySQL.
-5. Refresh the page.
-6. Open an Incognito window or another device and confirm that the new content is visible there too.
+To safely migrate old content:
 
-Migration does not overwrite content keys that already exist in MySQL.
+1. Use the browser that contains the newest Admin edits.
+2. Deploy the new server-backed version to TENTEN.
+3. Open `https://hokimetal.vn` in that same browser.
+4. Log into Admin with the new server-side Admin account.
+5. Missing CMS keys are copied to MySQL during the first successful Admin login.
+6. Refresh the site.
+7. Verify the same content in Incognito or on another device.
 
-Do not clear browser storage before verifying that the server copy is complete.
+Existing MySQL content is not overwritten by this first-login migration.
 
-## 8. Uploaded images
+Do not clear browser storage until the server copy has been verified.
 
-New Admin image uploads are sent to:
+## 7. Uploaded images
+
+New Admin uploads use:
 
 ```text
 POST /api/media/upload
 ```
 
-Files are stored under the runtime `uploads/` directory and served from:
+Physical files are stored in:
 
 ```text
-/uploads/<generated-file-name>
+uploads/
 ```
 
-Allowed upload types:
+and are served as:
+
+```text
+https://hokimetal.vn/uploads/<generated-file-name>
+```
+
+Allowed formats:
 
 - JPG/JPEG
 - PNG
@@ -140,67 +202,34 @@ Allowed upload types:
 
 Maximum upload size: 10 MB.
 
-The `uploads/` directory is intentionally ignored by Git. Back it up separately when moving hosting accounts or servers.
+The `uploads/` directory is runtime data and is ignored by Git. Back it up separately from the Git repository.
 
-## 9. API overview
+## 8. Production verification after every deployment
 
-Public read endpoints:
+Verify:
 
-```text
-GET  /api/health
-GET  /api/content
-GET  /api/content/:key
-POST /api/consultations
-```
+- `https://hokimetal.vn/` loads normally.
+- `https://hokimetal.vn/api/health` returns `ok: true` and `database: true`.
+- Admin login works using the MySQL-backed account.
+- The old frontend hard-coded password is no longer used.
+- Edit an About field, save, refresh, and confirm it remains.
+- Edit a project and article, then refresh.
+- Open another browser/device and confirm the changes are visible.
+- Upload an image and confirm its URL starts with `/uploads/`, not `data:image/...`.
+- Submit a consultation request and confirm it appears in Admin.
+- Restart the Node.js app and confirm all MySQL content remains.
 
-Admin session endpoints:
+## 9. Production rule
 
-```text
-POST /api/auth/login
-GET  /api/auth/me
-POST /api/auth/logout
-```
-
-Authenticated Admin write endpoints:
+From now on, production changes should follow only this path:
 
 ```text
-PUT    /api/content/:key
-POST   /api/content/batch
-POST   /api/media/upload
-GET    /api/consultations
-PATCH  /api/consultations/:id
-DELETE /api/consultations/:id
+edit code
+-> push/merge to GitHub main
+-> TENTEN Sync / Đồng bộ
+-> restart Node.js app if required
+-> check /api/health
+-> verify hokimetal.vn
 ```
 
-## 10. Production verification checklist
-
-After deployment verify all of the following:
-
-- Admin login succeeds with the MySQL-backed account.
-- The old hard-coded `admin / 123qwe` login no longer works unless you intentionally configured that password server-side.
-- Edit About content, refresh, and confirm the change remains.
-- Edit a project, refresh, and confirm the change remains.
-- Edit an article, refresh, and confirm the change remains.
-- Edit Branding/EPC/Leadership/Advisory and confirm persistence.
-- Open another browser/device and confirm it sees the same content.
-- Upload a JPG/PNG/WebP and confirm the URL begins with `/uploads/` rather than `data:image/...`.
-- Submit the consultation form and confirm Admin can see the request after authentication.
-- Restart the Node.js application and verify content remains because it is stored in MySQL.
-
-## 11. Troubleshooting
-
-### Admin can view the site but saving returns 401
-
-The Admin session is missing or expired. Log out and log in again. Confirm cookies are not being blocked and production uses HTTPS.
-
-### `/api/health` returns 503
-
-Database connectivity failed. Check the DB environment variables and cPanel MySQL user privileges.
-
-### Website HTML loads but `/api/*` returns 404
-
-The domain is probably still serving only a static `dist` folder instead of the Node.js application. Configure the cPanel Node.js App so `server.js` is the application entrypoint.
-
-### Images upload but disappear after hosting migration
-
-The physical files live in the runtime `uploads/` folder. Back up and restore that folder together with the MySQL database.
+Do not deploy production from Vercel or maintain a second production copy elsewhere unless the architecture is intentionally changed later.
