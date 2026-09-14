@@ -1,14 +1,20 @@
 {
-  "name": "react-example",
+  "name": "hoki-metal-cms",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "dev": "vite --port 3000 --host 0.0.0.0",
+    "dev": "node server.js",
+    "dev:frontend": "vite --port 3000 --host 0.0.0.0",
     "build": "vite build",
     "prestart": "npm install --omit=dev --no-audit --no-fund",
     "start": "node server.js",
-    "preview": "vite preview",
+    "serve": "node server.js",
+    "preview": "node server.js",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
