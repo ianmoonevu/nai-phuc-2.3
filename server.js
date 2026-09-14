@@ -30,27 +30,10 @@ const dbConfig = {
   charset: 'utf8mb4'
 };
 
-if (!dbConfig.user || !dbConfig.database) {
-  console.error('Missing DB_USER or DB_NAME. Copy .env.example to .env and configure the TENTEN MySQL credentials.');
-  process.exit(1);
-}
-
-const pool = mysql.createPool(dbConfig);
-const MySQLStore = MySQLStoreFactory(session);
-const sessionStore = new MySQLStore(
-  {
-    createDatabaseTable: true,
-    schema: {
-      tableName: 'admin_sessions',
-      columnNames: {
-        session_id: 'session_id',
-        expires: 'expires',
-        data: 'data'
-      }
-    }
-  },
-  pool
-);
+const dbConfigured = Boolean(dbConfig.user && dbConfig.database);
+let pool = null;
+let databaseReady = false;
+let sessionStore;
 
 const CONTENT_KEYS = new Set([
   'projects',
@@ -64,8 +47,16 @@ const CONTENT_KEYS = new Set([
   'advisory'
 ]);
 
-async function ensureSchema() {
-  await pool.execute(`
+function safeJsonParse(value, fallback = null) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+async function ensureSchema(connectionPool) {
+  await connectionPool.execute(`
     CREATE TABLE IF NOT EXISTS admins (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       username VARCHAR(100) NOT NULL UNIQUE,
@@ -75,7 +66,7 @@ async function ensureSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  await pool.execute(`
+  await connectionPool.execute(`
     CREATE TABLE IF NOT EXISTS site_content (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       content_key VARCHAR(100) NOT NULL UNIQUE,
@@ -84,7 +75,7 @@ async function ensureSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  await pool.execute(`
+  await connectionPool.execute(`
     CREATE TABLE IF NOT EXISTS consultation_requests (
       id VARCHAR(120) PRIMARY KEY,
       payload_json LONGTEXT NOT NULL,
@@ -96,7 +87,7 @@ async function ensureSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  await pool.execute(`
+  await connectionPool.execute(`
     CREATE TABLE IF NOT EXISTS media_uploads (
       id VARCHAR(120) PRIMARY KEY,
       original_name VARCHAR(255) NOT NULL,
@@ -110,17 +101,70 @@ async function ensureSchema() {
   `);
 }
 
-async function ensureInitialAdmin() {
+async function ensureInitialAdmin(connectionPool) {
   const username = (process.env.ADMIN_USERNAME || '').trim();
   const password = process.env.ADMIN_PASSWORD || '';
   if (!username || !password) return;
 
-  const [rows] = await pool.execute('SELECT id FROM admins WHERE username = ? LIMIT 1', [username]);
+  const [rows] = await connectionPool.execute(
+    'SELECT id FROM admins WHERE username = ? LIMIT 1',
+    [username]
+  );
   if (Array.isArray(rows) && rows.length > 0) return;
 
   const hash = await bcrypt.hash(password, 12);
-  await pool.execute('INSERT INTO admins (username, password_hash) VALUES (?, ?)', [username, hash]);
-  console.log(`Initial admin account created for ${username}. Remove ADMIN_PASSWORD from the environment after confirming login.`);
+  await connectionPool.execute(
+    'INSERT INTO admins (username, password_hash) VALUES (?, ?)',
+    [username, hash]
+  );
+  console.log(`Initial admin account created for ${username}.`);
+}
+
+if (dbConfigured) {
+  try {
+    pool = mysql.createPool(dbConfig);
+    await pool.query('SELECT 1');
+    await ensureSchema(pool);
+    await ensureInitialAdmin(pool);
+    databaseReady = true;
+
+    const MySQLStore = MySQLStoreFactory(session);
+    sessionStore = new MySQLStore(
+      {
+        createDatabaseTable: true,
+        schema: {
+          tableName: 'admin_sessions',
+          columnNames: {
+            session_id: 'session_id',
+            expires: 'expires',
+            data: 'data'
+          }
+        }
+      },
+      pool
+    );
+
+    if (typeof sessionStore.onReady === 'function') {
+      await sessionStore.onReady();
+    }
+
+    console.log('MySQL CMS storage is ready.');
+  } catch (error) {
+    databaseReady = false;
+    sessionStore = undefined;
+    console.error('MySQL configuration exists but database initialization failed. Public site will continue in fallback mode.', error);
+  }
+} else {
+  console.warn('MySQL is not configured yet. Public site will continue in fallback mode; Admin persistence is disabled until DB_USER and DB_NAME are configured.');
+}
+
+function requireDatabase(_req, res, next) {
+  if (databaseReady && pool) return next();
+  return res.status(503).json({
+    ok: false,
+    error: 'Database is not configured or unavailable',
+    database: false
+  });
 }
 
 function requireAdmin(req, res, next) {
@@ -128,33 +172,25 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ ok: false, error: 'Authentication required' });
 }
 
-function safeJsonParse(value, fallback = null) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
-app.use(
-  session({
-    name: 'np_admin_session',
-    secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
-    store: sessionStore,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60 * 8
-    }
-  })
-);
+
+const sessionOptions = {
+  name: 'np_admin_session',
+  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    maxAge: 1000 * 60 * 60 * 8
+  }
+};
+if (sessionStore) sessionOptions.store = sessionStore;
+app.use(session(sessionOptions));
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -173,20 +209,35 @@ const consultationLimiter = rateLimit({
 });
 
 app.get('/api/health', async (_req, res) => {
+  if (!databaseReady || !pool) {
+    return res.json({
+      ok: true,
+      database: false,
+      configured: dbConfigured,
+      mode: 'fallback'
+    });
+  }
+
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true, database: true });
+    return res.json({ ok: true, database: true, configured: true, mode: 'mysql' });
   } catch {
-    res.status(503).json({ ok: false, database: false });
+    databaseReady = false;
+    return res.status(503).json({ ok: false, database: false, configured: true, mode: 'fallback' });
   }
 });
 
-app.post('/api/auth/login', loginLimiter, async (req, res) => {
+app.post('/api/auth/login', loginLimiter, requireDatabase, async (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
-  if (!username || !password) return res.status(400).json({ ok: false, error: 'Username and password are required' });
+  if (!username || !password) {
+    return res.status(400).json({ ok: false, error: 'Username and password are required' });
+  }
 
-  const [rows] = await pool.execute('SELECT id, username, password_hash FROM admins WHERE username = ? LIMIT 1', [username]);
+  const [rows] = await pool.execute(
+    'SELECT id, username, password_hash FROM admins WHERE username = ? LIMIT 1',
+    [username]
+  );
   const admin = Array.isArray(rows) ? rows[0] : null;
   if (!admin || !(await bcrypt.compare(password, admin.password_hash))) {
     return res.status(401).json({ ok: false, error: 'Invalid credentials' });
@@ -194,12 +245,16 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 
   req.session.adminUserId = admin.id;
   req.session.adminUsername = admin.username;
-  await new Promise((resolve, reject) => req.session.save((err) => (err ? reject(err) : resolve())));
+  await new Promise((resolve, reject) =>
+    req.session.save((err) => (err ? reject(err) : resolve()))
+  );
   return res.json({ ok: true, username: admin.username });
 });
 
 app.get('/api/auth/me', (req, res) => {
-  if (!req.session?.adminUserId) return res.status(401).json({ ok: false, authenticated: false });
+  if (!req.session?.adminUserId) {
+    return res.status(401).json({ ok: false, authenticated: false });
+  }
   return res.json({ ok: true, authenticated: true, username: req.session.adminUsername });
 });
 
@@ -211,7 +266,13 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.get('/api/content', async (_req, res) => {
-  const [rows] = await pool.query('SELECT content_key, content_json, updated_at FROM site_content');
+  if (!databaseReady || !pool) {
+    return res.json({ ok: true, content: {}, updatedAt: {}, database: false });
+  }
+
+  const [rows] = await pool.query(
+    'SELECT content_key, content_json, updated_at FROM site_content'
+  );
   const content = {};
   const updatedAt = {};
   for (const row of rows) {
@@ -219,22 +280,38 @@ app.get('/api/content', async (_req, res) => {
     content[row.content_key] = safeJsonParse(row.content_json, null);
     updatedAt[row.content_key] = row.updated_at;
   }
-  res.json({ ok: true, content, updatedAt });
+  return res.json({ ok: true, content, updatedAt, database: true });
 });
 
-app.get('/api/content/:key', async (req, res) => {
+app.get('/api/content/:key', requireDatabase, async (req, res) => {
   const key = req.params.key;
-  if (!CONTENT_KEYS.has(key)) return res.status(404).json({ ok: false, error: 'Unknown content key' });
-  const [rows] = await pool.execute('SELECT content_json, updated_at FROM site_content WHERE content_key = ? LIMIT 1', [key]);
-  if (!Array.isArray(rows) || rows.length === 0) return res.status(404).json({ ok: false, error: 'Content not initialized' });
-  res.json({ ok: true, data: safeJsonParse(rows[0].content_json, null), updatedAt: rows[0].updated_at });
+  if (!CONTENT_KEYS.has(key)) {
+    return res.status(404).json({ ok: false, error: 'Unknown content key' });
+  }
+
+  const [rows] = await pool.execute(
+    'SELECT content_json, updated_at FROM site_content WHERE content_key = ? LIMIT 1',
+    [key]
+  );
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(404).json({ ok: false, error: 'Content not initialized' });
+  }
+  return res.json({
+    ok: true,
+    data: safeJsonParse(rows[0].content_json, null),
+    updatedAt: rows[0].updated_at
+  });
 });
 
-app.put('/api/content/:key', requireAdmin, async (req, res) => {
+app.put('/api/content/:key', requireDatabase, requireAdmin, async (req, res) => {
   const key = req.params.key;
-  if (!CONTENT_KEYS.has(key)) return res.status(404).json({ ok: false, error: 'Unknown content key' });
+  if (!CONTENT_KEYS.has(key)) {
+    return res.status(404).json({ ok: false, error: 'Unknown content key' });
+  }
   const value = req.body?.data;
-  if (value === undefined) return res.status(400).json({ ok: false, error: 'Missing data' });
+  if (value === undefined) {
+    return res.status(400).json({ ok: false, error: 'Missing data' });
+  }
 
   const json = JSON.stringify(value);
   if (Buffer.byteLength(json, 'utf8') > 4 * 1024 * 1024) {
@@ -246,10 +323,10 @@ app.put('/api/content/:key', requireAdmin, async (req, res) => {
      ON DUPLICATE KEY UPDATE content_json = VALUES(content_json), updated_at = CURRENT_TIMESTAMP`,
     [key, json]
   );
-  res.json({ ok: true, updatedAt: new Date().toISOString() });
+  return res.json({ ok: true, updatedAt: new Date().toISOString() });
 });
 
-app.post('/api/content/batch', requireAdmin, async (req, res) => {
+app.post('/api/content/batch', requireDatabase, requireAdmin, async (req, res) => {
   const entries = req.body?.content;
   if (!entries || typeof entries !== 'object' || Array.isArray(entries)) {
     return res.status(400).json({ ok: false, error: 'content must be an object' });
@@ -261,7 +338,9 @@ app.post('/api/content/batch', requireAdmin, async (req, res) => {
     for (const [key, value] of Object.entries(entries)) {
       if (!CONTENT_KEYS.has(key)) continue;
       const json = JSON.stringify(value);
-      if (Buffer.byteLength(json, 'utf8') > 4 * 1024 * 1024) throw new Error(`Content payload too large: ${key}`);
+      if (Buffer.byteLength(json, 'utf8') > 4 * 1024 * 1024) {
+        throw new Error(`Content payload too large: ${key}`);
+      }
       await connection.execute(
         `INSERT INTO site_content (content_key, content_json) VALUES (?, ?)
          ON DUPLICATE KEY UPDATE content_json = VALUES(content_json), updated_at = CURRENT_TIMESTAMP`,
@@ -269,7 +348,7 @@ app.post('/api/content/batch', requireAdmin, async (req, res) => {
       );
     }
     await connection.commit();
-    res.json({ ok: true, updatedAt: new Date().toISOString() });
+    return res.json({ ok: true, updatedAt: new Date().toISOString() });
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -278,14 +357,18 @@ app.post('/api/content/batch', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/consultations', consultationLimiter, async (req, res) => {
+app.post('/api/consultations', consultationLimiter, requireDatabase, async (req, res) => {
   const body = req.body || {};
   const name = String(body.name || '').trim();
   const firm = String(body.firm || '').trim();
   const email = String(body.email || '').trim();
   const projectType = String(body.projectType || '').trim();
+
   if (!name || !firm || !email || !projectType || !email.includes('@')) {
-    return res.status(400).json({ ok: false, error: 'Please provide name, company, valid email and project type' });
+    return res.status(400).json({
+      ok: false,
+      error: 'Please provide name, company, valid email and project type'
+    });
   }
 
   const record = {
@@ -303,30 +386,45 @@ app.post('/api/consultations', consultationLimiter, async (req, res) => {
     'INSERT INTO consultation_requests (id, payload_json, status, submitted_at) VALUES (?, ?, ?, ?)',
     [record.id, JSON.stringify(record), record.status, new Date(record.submittedAt)]
   );
-  res.status(201).json({ ok: true, data: record });
+  return res.status(201).json({ ok: true, data: record });
 });
 
-app.get('/api/consultations', requireAdmin, async (_req, res) => {
-  const [rows] = await pool.query('SELECT payload_json, status FROM consultation_requests ORDER BY submitted_at DESC');
-  const data = rows.map((row) => ({ ...safeJsonParse(row.payload_json, {}), status: row.status }));
-  res.json({ ok: true, data });
+app.get('/api/consultations', requireDatabase, requireAdmin, async (_req, res) => {
+  const [rows] = await pool.query(
+    'SELECT payload_json, status FROM consultation_requests ORDER BY submitted_at DESC'
+  );
+  const data = rows.map((row) => ({
+    ...safeJsonParse(row.payload_json, {}),
+    status: row.status
+  }));
+  return res.json({ ok: true, data });
 });
 
-app.patch('/api/consultations/:id', requireAdmin, async (req, res) => {
+app.patch('/api/consultations/:id', requireDatabase, requireAdmin, async (req, res) => {
   const status = String(req.body?.status || '');
   if (!['new', 'reviewed', 'in-progress', 'completed'].includes(status)) {
     return res.status(400).json({ ok: false, error: 'Invalid status' });
   }
-  const [rows] = await pool.execute('SELECT payload_json FROM consultation_requests WHERE id = ? LIMIT 1', [req.params.id]);
-  if (!Array.isArray(rows) || rows.length === 0) return res.status(404).json({ ok: false, error: 'Request not found' });
+
+  const [rows] = await pool.execute(
+    'SELECT payload_json FROM consultation_requests WHERE id = ? LIMIT 1',
+    [req.params.id]
+  );
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(404).json({ ok: false, error: 'Request not found' });
+  }
+
   const payload = { ...safeJsonParse(rows[0].payload_json, {}), status };
-  await pool.execute('UPDATE consultation_requests SET payload_json = ?, status = ? WHERE id = ?', [JSON.stringify(payload), status, req.params.id]);
-  res.json({ ok: true, data: payload });
+  await pool.execute(
+    'UPDATE consultation_requests SET payload_json = ?, status = ? WHERE id = ?',
+    [JSON.stringify(payload), status, req.params.id]
+  );
+  return res.json({ ok: true, data: payload });
 });
 
-app.delete('/api/consultations/:id', requireAdmin, async (req, res) => {
+app.delete('/api/consultations/:id', requireDatabase, requireAdmin, async (req, res) => {
   await pool.execute('DELETE FROM consultation_requests WHERE id = ?', [req.params.id]);
-  res.json({ ok: true });
+  return res.json({ ok: true });
 });
 
 const uploadRoot = path.resolve(__dirname, process.env.UPLOAD_DIR || 'uploads');
@@ -335,12 +433,12 @@ await fs.mkdir(uploadRoot, { recursive: true });
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadRoot),
   filename: (_req, file, cb) => {
-    const mimeExtension = {
+    const extension = {
       'image/jpeg': '.jpg',
       'image/png': '.png',
       'image/webp': '.webp'
     }[file.mimetype];
-    cb(null, `${Date.now()}-${crypto.randomBytes(10).toString('hex')}${mimeExtension || ''}`);
+    cb(null, `${Date.now()}-${crypto.randomBytes(10).toString('hex')}${extension || ''}`);
   }
 });
 
@@ -349,32 +447,56 @@ const uploader = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    cb(allowed.includes(file.mimetype) ? null : new Error('Only JPG, PNG and WebP files are allowed'), allowed.includes(file.mimetype));
+    const accepted = allowed.includes(file.mimetype);
+    cb(accepted ? null : new Error('Only JPG, PNG and WebP files are allowed'), accepted);
   }
 });
 
-app.post('/api/media/upload', requireAdmin, uploader.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ ok: false, error: 'No file uploaded' });
-  const category = String(req.body?.category || 'general');
-  const id = `media-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
-  const url = `/uploads/${req.file.filename}`;
-  await pool.execute(
-    'INSERT INTO media_uploads (id, original_name, stored_name, url, mime_type, size_bytes, category) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [id, req.file.originalname, req.file.filename, url, req.file.mimetype, req.file.size, category]
-  );
-  res.status(201).json({
-    ok: true,
-    data: {
-      id,
-      name: path.parse(req.file.originalname).name,
-      url,
-      size: `${Math.max(1, Math.round(req.file.size / 1024))} KB`,
-      dimensions: 'Server Upload',
-      uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      category
+app.post(
+  '/api/media/upload',
+  requireDatabase,
+  requireAdmin,
+  uploader.single('file'),
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: 'No file uploaded' });
     }
-  });
-});
+
+    const category = String(req.body?.category || 'general');
+    const id = `media-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    const url = `/uploads/${req.file.filename}`;
+
+    await pool.execute(
+      'INSERT INTO media_uploads (id, original_name, stored_name, url, mime_type, size_bytes, category) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        id,
+        req.file.originalname,
+        req.file.filename,
+        url,
+        req.file.mimetype,
+        req.file.size,
+        category
+      ]
+    );
+
+    return res.status(201).json({
+      ok: true,
+      data: {
+        id,
+        name: path.parse(req.file.originalname).name,
+        url,
+        size: `${Math.max(1, Math.round(req.file.size / 1024))} KB`,
+        dimensions: 'Server Upload',
+        uploadedAt: new Date().toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        }),
+        category
+      }
+    });
+  }
+);
 
 app.use('/uploads', express.static(uploadRoot, { maxAge: isProduction ? '30d' : 0 }));
 
@@ -390,12 +512,16 @@ if (isProduction) {
 app.use((error, _req, res, _next) => {
   console.error(error);
   const message = isProduction ? 'Server error' : error.message;
-  res.status(error?.code === 'LIMIT_FILE_SIZE' ? 413 : 500).json({ ok: false, error: message });
+  return res
+    .status(error?.code === 'LIMIT_FILE_SIZE' ? 413 : 500)
+    .json({ ok: false, error: message });
 });
 
-await ensureSchema();
-await ensureInitialAdmin();
-
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Nai Phuc CMS server listening on port ${port}`);
+  console.log(`HOKI CMS server listening on port ${port}`);
+  console.log(
+    databaseReady
+      ? 'CMS persistence: MySQL enabled'
+      : 'CMS persistence: fallback mode (configure MySQL to enable Admin persistence)'
+  );
 });
