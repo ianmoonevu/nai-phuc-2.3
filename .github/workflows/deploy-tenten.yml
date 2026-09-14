@@ -1,0 +1,151 @@
+name: Deploy to TENTEN
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tenten-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check
+        run: npm run lint
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Package runtime release
+        run: |
+          set -euo pipefail
+          tar -czf tenten-release.tgz dist server.js package.json database
+
+      - name: Check TENTEN deployment secrets
+        id: tenten
+        env:
+          SSH_HOST: ${{ secrets.TENTEN_SSH_HOST }}
+          SSH_USER: ${{ secrets.TENTEN_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.TENTEN_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.TENTEN_SSH_KNOWN_HOSTS }}
+          APP_PATH: ${{ secrets.TENTEN_APP_PATH }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS APP_PATH; do
+            if [ -z "${!name:-}" ]; then
+              echo "::notice::Missing GitHub secret for TENTEN: ${name}"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -eq 1 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Build passed, but deployment is skipped until the TENTEN SSH secrets are configured."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure SSH
+        if: steps.tenten.outputs.ready == 'true'
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.TENTEN_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.TENTEN_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload release to TENTEN
+        if: steps.tenten.outputs.ready == 'true'
+        env:
+          SSH_HOST: ${{ secrets.TENTEN_SSH_HOST }}
+          SSH_PORT: ${{ secrets.TENTEN_SSH_PORT }}
+          SSH_USER: ${{ secrets.TENTEN_SSH_USER }}
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          REMOTE_RELEASE=".hokimetal-release-${GITHUB_SHA}.tgz"
+          scp -P "$PORT" tenten-release.tgz "${SSH_USER}@${SSH_HOST}:${REMOTE_RELEASE}"
+          echo "REMOTE_RELEASE=${REMOTE_RELEASE}" >> "$GITHUB_ENV"
+
+      - name: Activate release on TENTEN
+        if: steps.tenten.outputs.ready == 'true'
+        env:
+          SSH_HOST: ${{ secrets.TENTEN_SSH_HOST }}
+          SSH_PORT: ${{ secrets.TENTEN_SSH_PORT }}
+          SSH_USER: ${{ secrets.TENTEN_SSH_USER }}
+          APP_PATH: ${{ secrets.TENTEN_APP_PATH }}
+          RESTART_COMMAND: ${{ secrets.TENTEN_RESTART_COMMAND }}
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+
+          ssh -p "$PORT" "${SSH_USER}@${SSH_HOST}" \
+            bash -s -- "$APP_PATH" "$REMOTE_RELEASE" "$RESTART_COMMAND" <<'REMOTE'
+          set -euo pipefail
+          APP_PATH="$1"
+          RELEASE_NAME="$2"
+          RESTART_COMMAND="$3"
+          RELEASE_PATH="$HOME/$RELEASE_NAME"
+
+          mkdir -p "$APP_PATH"
+          cd "$APP_PATH"
+
+          # Keep production secrets and user uploads outside the release archive.
+          test -f .env || echo 'WARNING: .env is missing in the application directory.'
+          mkdir -p uploads
+
+          tar -xzf "$RELEASE_PATH"
+          rm -f "$RELEASE_PATH"
+
+          npm install --omit=dev --no-audit --no-fund
+
+          if [ -n "$RESTART_COMMAND" ]; then
+            bash -lc "$RESTART_COMMAND"
+          else
+            # cPanel/Passenger-style Node applications commonly restart on this marker.
+            # If the TENTEN package uses a different restart command, configure
+            # TENTEN_RESTART_COMMAND in GitHub Actions secrets.
+            mkdir -p tmp
+            touch tmp/restart.txt
+          fi
+          REMOTE
+
+      - name: Verify hokimetal.vn backend
+        if: steps.tenten.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error --max-time 15 https://hokimetal.vn/api/health; then
+              echo
+              echo 'TENTEN production health check passed.'
+              exit 0
+            fi
+            sleep 8
+          done
+          echo 'Production health check failed after deployment.' >&2
+          exit 1
