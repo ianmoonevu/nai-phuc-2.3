@@ -13,8 +13,6 @@ GitHub main
    -> https://hokimetal.vn
 ```
 
-Vercel is not part of the production architecture.
-
 ## 1. TENTEN project setup
 
 TENTEN Vibe Code Hosting / Tenten 1-Click Launch Website supports deploying from a GitHub repository.
@@ -42,8 +40,6 @@ Initial TENTEN setup:
 7. Confirm the app can be restarted from the TENTEN panel/SSH.
 
 TENTEN's Git-based project UI also has **Sync / Đồng bộ**, which pulls the latest revision from GitHub. That remains a manual fallback if automatic SSH deployment is temporarily unavailable.
-
-Do not upload a separate Vercel build and do not point DNS to Vercel.
 
 ## 2. Automatic deployment from GitHub to TENTEN
 
@@ -279,5 +275,3 @@ edit code
 ```
 
 Manual TENTEN **Sync / Đồng bộ** remains the fallback path.
-
-Do not deploy production from Vercel or maintain a second production copy elsewhere unless the architecture is intentionally changed later.
