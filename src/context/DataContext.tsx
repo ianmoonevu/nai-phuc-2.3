@@ -204,6 +204,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [saveErrors, setSaveErrors] = useState<Record<string, string>>({});
   const [pendingSaves, setPendingSaves] = useState(0);
+  const [isNoticeDismissed, setIsNoticeDismissed] = useState(false);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   const markSynced = () => setLastServerSyncTime(new Date().toISOString());
@@ -222,6 +223,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         markSynced();
       } catch (error) {
+        setIsNoticeDismissed(false);
         setSaveErrors((previous) => ({ ...previous, [key]: error instanceof Error ? error.message : 'Không lưu được nội dung.' }));
       } finally {
         setPendingSaves((count) => count - 1);
@@ -765,14 +767,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       leadershipHeads, updateLeadershipHead, addLeadershipHead, deleteLeadershipHead, resetLeadershipHeads,
       advisoryMembers, updateAdvisoryMember, addAdvisoryMember, deleteAdvisoryMember, resetAdvisoryMembers
     }}>
-      {children}
-      {(Object.keys(saveErrors).length > 0 || (isAdminAuthenticated && pendingSaves > 0)) && (
-        <div role={Object.keys(saveErrors).length ? 'alert' : 'status'} style={{ position: 'fixed', bottom: 16, left: 16, right: 16, zIndex: 10000, padding: 16, background: '#fff', color: '#9f1239', border: '2px solid currentColor', borderRadius: 8 }}>
-          {Object.keys(saveErrors).length
-            ? `Chưa hoàn tất: ${Object.values(saveErrors).join(' ')} Giữ trang này mở và thử lưu lại sau khi khắc phục lỗi.`
-            : 'Đang lưu lên máy chủ… Vui lòng đợi trước khi tải lại trang.'}
+      {isAdminAuthenticated && ((Object.keys(saveErrors).length > 0 && !isNoticeDismissed) || pendingSaves > 0) && (
+        <div role={Object.keys(saveErrors).length ? 'alert' : 'status'} className="flex items-start justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="min-w-0 break-words">
+            {Object.keys(saveErrors).length
+              ? `Chưa lưu được: ${Object.values(saveErrors).join(' ')} Hãy thử lưu lại sau khi khắc phục lỗi.`
+              : 'Đang lưu lên máy chủ… Vui lòng đợi trước khi tải lại trang.'}
+          </p>
+          {Object.keys(saveErrors).length > 0 && pendingSaves === 0 && (
+            <button type="button" aria-label="Đóng thông báo" onClick={() => setIsNoticeDismissed(true)} className="shrink-0 rounded border border-amber-300 px-3 py-1 font-semibold hover:bg-amber-100">
+              Đóng
+            </button>
+          )}
         </div>
       )}
+      {children}
     </DataContext.Provider>
   );
 };
