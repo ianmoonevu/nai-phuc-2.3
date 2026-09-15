@@ -34,9 +34,3 @@ DB_PASSWORD="MAT_KHAU_MYSQL"
 Nếu cấu hình DB đã có trong .env của ứng dụng hoặc môi trường chạy lệnh thì không cần lặp lại DB_*. File recovery có ưu tiên khi tồn tại, nên phải dùng đúng database CMS. Không dùng nguyên các giá trị mẫu. Mật khẩu Admin tối thiểu 12 ký tự, tối đa 72 byte UTF-8.
 
 Chạy admin:reset --check-config trước, rồi admin:reset. Khi thành công, xóa file recovery và hai biến RESET_ADMIN_* trên giao diện hosting. Chưa có cấu hình MySQL thì cần thiết lập database trước.
-
-## Khôi phục tạm theo yêu cầu chủ website
-
-Chạy `admin:reset --temporary` trong Plesk Run script để đặt tài khoản admin bằng thông tin tạm được định nghĩa trong script. Chế độ này không cần hai biến RESET_ADMIN_* và bỏ qua chúng. Chỉ lệnh thủ công này thay đổi tài khoản; ứng dụng web không dùng mật khẩu dự phòng và khởi động lại không tự reset.
-
-Thông tin tạm nằm trong repository công khai. Sau khi khôi phục, đặt mật khẩu mạnh riêng bằng quy trình thông thường ở trên. Lệnh vẫn cần cấu hình DB_* hợp lệ và bảng admins đã tồn tại. Nếu chưa có, lệnh thất bại và không đổi tài khoản. `admin:reset --temporary --check-config` chỉ kiểm tra cấu hình, không đổi dữ liệu.
