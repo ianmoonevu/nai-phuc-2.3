@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   AdvisoryMember,
   AboutPageInfo,
@@ -20,6 +20,7 @@ import {
   LEADERSHIP_HEADS,
   PROJECT_CASES
 } from '../data/mockData';
+import { apiJson } from '../utils/api';
 import { slugify } from '../utils/router';
 import { compressAndOptimizeImage } from '../utils/imageOptimizer';
 
@@ -97,25 +98,6 @@ const LEGACY_STORAGE_KEYS: Record<ContentKey, string> = {
   about_info: 'hoki_about_info_v1',
   leadership: 'hoki_leadership_v1',
   advisory: 'hoki_advisory_v1'
-};
-
-const apiJson = async <T,>(url: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(url, {
-    credentials: 'same-origin',
-    ...init,
-    headers: {
-      ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(init?.headers || {})
-    }
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload?.error || `Request failed (${response.status})`) as Error & { status?: number };
-    error.status = response.status;
-    throw error;
-  }
-  return payload as T;
 };
 
 interface DataContextType {
@@ -207,21 +189,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isServerSyncing, setIsServerSyncing] = useState(false);
   const [lastServerSyncTime, setLastServerSyncTime] = useState<string | null>(null);
 
+  const [saveErrors, setSaveErrors] = useState<Record<string, string>>({});
+  const [pendingSaves, setPendingSaves] = useState(0);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+
   const markSynced = () => setLastServerSyncTime(new Date().toISOString());
 
-  const persistContent = async (key: ContentKey, data: unknown) => {
-    setIsServerSyncing(true);
-    try {
-      await apiJson(`/api/content/${key}`, {
-        method: 'PUT',
-        body: JSON.stringify({ data })
-      });
-      markSynced();
-    } catch (error) {
-      console.error(`Failed to persist ${key}:`, error);
-    } finally {
-      setIsServerSyncing(false);
-    }
+  const persistContent = (key: ContentKey, data: unknown) => {
+    // Capture the snapshot now, then serialize writes so older edits cannot finish last.
+    const body = JSON.stringify({ data });
+    const operation = saveQueue.current.then(async () => {
+      setPendingSaves((count) => count + 1);
+      try {
+        await apiJson(`/api/content/${key}`, { method: 'PUT', body });
+        setSaveErrors((previous) => {
+          const next = { ...previous };
+          delete next[key];
+          return next;
+        });
+        markSynced();
+      } catch (error) {
+        setSaveErrors((previous) => ({ ...previous, [key]: error instanceof Error ? error.message : 'Không lưu được nội dung.' }));
+      } finally {
+        setPendingSaves((count) => count - 1);
+      }
+    });
+    saveQueue.current = operation;
+    return operation;
   };
 
   const applyServerContent = (content: Partial<Record<ContentKey, any>>) => {
@@ -629,12 +623,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         method: 'POST',
         body: JSON.stringify({ username: id.trim(), password: pass })
       });
+      setSaveErrors({});
       setIsAdminAuthenticated(true);
       await migrateLegacyDataIfNeeded();
       await refreshServerData();
       return true;
     } catch (error) {
-      console.warn('Admin login failed:', error);
+      setSaveErrors((previous) => ({ ...previous, login: error instanceof Error ? error.message : 'Đăng nhập thất bại.' }));
       setIsAdminAuthenticated(false);
       return false;
     }
@@ -753,6 +748,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       advisoryMembers, updateAdvisoryMember, addAdvisoryMember, deleteAdvisoryMember, resetAdvisoryMembers
     }}>
       {children}
+      {(Object.keys(saveErrors).length > 0 || (isAdminAuthenticated && pendingSaves > 0)) && (
+        <div role={Object.keys(saveErrors).length ? 'alert' : 'status'} style={{ position: 'fixed', bottom: 16, left: 16, right: 16, zIndex: 10000, padding: 16, background: '#fff', color: '#9f1239', border: '2px solid currentColor', borderRadius: 8 }}>
+          {Object.keys(saveErrors).length
+            ? `Chưa hoàn tất: ${Object.values(saveErrors).join(' ')} Giữ trang này mở và thử lưu lại sau khi khắc phục lỗi.`
+            : 'Đang lưu lên máy chủ… Vui lòng đợi trước khi tải lại trang.'}
+        </div>
+      )}
     </DataContext.Provider>
   );
 };
