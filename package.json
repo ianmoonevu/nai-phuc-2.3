@@ -16,7 +16,8 @@
     "serve": "node server.js",
     "preview": "node server.js",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "admin:reset": "node scripts/reset-admin.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
