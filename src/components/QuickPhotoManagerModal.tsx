@@ -270,7 +270,7 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
               Manage All Photos: {project.title}
             </h3>
             <p className="text-xs text-[#00356a]/70 mt-0.5">
-              Change cover picture, replace gallery photos, or batch upload optimized project visuals.
+              Change cover picture, replace gallery photos, or batch upload directly to Supabase Storage.
             </p>
           </div>
           <button
@@ -347,7 +347,7 @@ export const QuickPhotoManagerModal: React.FC<QuickPhotoManagerModalProps> = ({
                 </div>
                 <div className="text-[11px] text-[#00356a]/70 flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-[#006e21]" />
-                  <span>Stored in media asset library for high-speed local delivery.</span>
+                  <span>Uploaded directly to Supabase Storage 'media' bucket for high-speed delivery.</span>
                 </div>
               </div>
             </div>

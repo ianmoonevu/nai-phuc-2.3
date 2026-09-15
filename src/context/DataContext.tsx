@@ -22,6 +22,36 @@ import {
 } from '../data/mockData';
 import { slugify } from '../utils/router';
 import { compressAndOptimizeImage } from '../utils/imageOptimizer';
+import { isSupabaseConfigured } from '../lib/supabase';
+import {
+  fetchBrandingFromSupabase,
+  saveBrandingToSupabase,
+  subscribeToBrandingRealtime,
+  fetchProjectsFromSupabase,
+  saveProjectToSupabase,
+  deleteProjectFromSupabase,
+  subscribeToProjectsRealtime,
+  fetchArticlesFromSupabase,
+  saveArticleToSupabase,
+  deleteArticleFromSupabase,
+  subscribeToArticlesRealtime,
+  fetchConsultationsFromSupabase,
+  saveConsultationToSupabase,
+  deleteConsultationFromSupabase,
+  subscribeToConsultationsRealtime,
+  fetchMediaItemsFromSupabase,
+  saveMediaItemToSupabase,
+  deleteMediaItemFromSupabase,
+  subscribeToMediaRealtime,
+  fetchEpcPartnersFromSupabase,
+  saveEpcPartnersToSupabase,
+  subscribeToEpcPartnersRealtime,
+  fetchAboutInfoFromSupabase,
+  saveAboutInfoToSupabase,
+  fetchEpcConfigFromSupabase,
+  saveEpcConfigToSupabase,
+  uploadFileToSupabaseStorage
+} from '../lib/supabaseSync';
 
 const INITIAL_CONSULTATIONS: ConsultationRequest[] = [
   {
@@ -469,6 +499,106 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     link.href = iconUrl;
   }, [branding.faviconUrl]);
 
+  // Real-time Shared Cloud Persistence via Supabase Centralized Database
+  useEffect(() => {
+    if (isSupabaseConfigured) {
+      console.log('🔗 Connecting to Supabase Cloud Database...');
+
+      // 1. Initial Fetch from Supabase
+      fetchBrandingFromSupabase().then((data) => {
+        if (data) {
+          setBranding((prev) => ({ ...prev, ...data }));
+        }
+      });
+
+      fetchProjectsFromSupabase().then((data) => {
+        if (data && data.length > 0) {
+          setProjects(data);
+        }
+      });
+
+      fetchArticlesFromSupabase().then((data) => {
+        if (data && data.length > 0) {
+          setArticles(data);
+        }
+      });
+
+      fetchConsultationsFromSupabase().then((data) => {
+        if (data && data.length > 0) {
+          setConsultationRequests(data);
+        }
+      });
+
+      fetchMediaItemsFromSupabase().then((data) => {
+        if (data && data.length > 0) {
+          setMediaItems(data);
+        }
+      });
+
+      fetchEpcPartnersFromSupabase().then((data) => {
+        if (data && data.length > 0) {
+          setEpcPartners(data);
+        }
+      });
+
+      fetchAboutInfoFromSupabase().then((data) => {
+        if (data) {
+          setAboutInfo((prev) => ({ ...prev, ...data }));
+        }
+      });
+
+      fetchEpcConfigFromSupabase().then((data) => {
+        if (data) {
+          setEpcSectionConfig((prev) => ({ ...prev, ...data }));
+        }
+      });
+
+      // 2. Real-time Subscriptions to Supabase Tables
+      const unsubSupabaseBranding = subscribeToBrandingRealtime((freshBranding) => {
+        setBranding((prev) => ({ ...prev, ...freshBranding }));
+      });
+
+      const unsubSupabaseProjects = subscribeToProjectsRealtime((freshProjects) => {
+        if (freshProjects && freshProjects.length > 0) {
+          setProjects(freshProjects);
+        }
+      });
+
+      const unsubSupabaseArticles = subscribeToArticlesRealtime((freshArticles) => {
+        if (freshArticles && freshArticles.length > 0) {
+          setArticles(freshArticles);
+        }
+      });
+
+      const unsubSupabaseConsultations = subscribeToConsultationsRealtime((freshConsultations) => {
+        if (freshConsultations && freshConsultations.length > 0) {
+          setConsultationRequests(freshConsultations);
+        }
+      });
+
+      const unsubSupabaseMedia = subscribeToMediaRealtime((freshMedia) => {
+        if (freshMedia && freshMedia.length > 0) {
+          setMediaItems(freshMedia);
+        }
+      });
+
+      const unsubSupabaseEpc = subscribeToEpcPartnersRealtime((freshPartners) => {
+        if (freshPartners && freshPartners.length > 0) {
+          setEpcPartners(freshPartners);
+        }
+      });
+
+      return () => {
+        unsubSupabaseBranding();
+        unsubSupabaseProjects();
+        unsubSupabaseArticles();
+        unsubSupabaseConsultations();
+        unsubSupabaseMedia();
+        unsubSupabaseEpc();
+      };
+    }
+  }, []);
+
   const updateBranding = (updated: Partial<SiteBranding>) => {
     setBranding((prev) => {
       const next = { ...prev, ...updated };
@@ -477,6 +607,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (e) {
         console.warn('Could not save branding to localStorage:', e);
       }
+      // Broadcast to Supabase centralized cloud database
+      saveBrandingToSupabase(next).catch((err) => {
+        console.warn('Could not sync branding to Supabase:', err);
+      });
       return next;
     });
   };
@@ -488,6 +622,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Could not reset branding in localStorage:', e);
     }
+    saveBrandingToSupabase(DEFAULT_BRANDING).catch((err) => {
+      console.warn('Could not reset branding in Supabase:', err);
+    });
   };
 
   // EPC Partners State (Main Page)
@@ -595,13 +732,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // EPC Partners mutation handlers
   const updateEpcPartner = (id: string, updated: Partial<StrategicPartner>) => {
     setEpcPartners((prev) => {
-      return prev.map((p) => {
+      const next = prev.map((p) => {
         if (p.id === id) {
           const subtitle = updated.subtitle !== undefined ? updated.subtitle : (updated.role !== undefined ? updated.role : p.subtitle);
           return { ...p, ...updated, subtitle, role: subtitle };
         }
         return p;
       });
+      saveEpcPartnersToSupabase(next).catch((err) => {
+        console.warn('Could not sync EPC partners to Supabase:', err);
+      });
+      return next;
     });
   };
 
@@ -612,16 +753,31 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subtitle: partner.subtitle || partner.role || 'Strategic EPC Partner',
       role: partner.subtitle || partner.role || 'Strategic EPC Partner'
     };
-    setEpcPartners((prev) => [...prev, newPartner]);
+    setEpcPartners((prev) => {
+      const next = [...prev, newPartner];
+      saveEpcPartnersToSupabase(next).catch((err) => {
+        console.warn('Could not sync EPC partners to Supabase:', err);
+      });
+      return next;
+    });
     return newPartner;
   };
 
   const deleteEpcPartner = (id: string) => {
-    setEpcPartners((prev) => prev.filter((p) => p.id !== id));
+    setEpcPartners((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      saveEpcPartnersToSupabase(next).catch((err) => {
+        console.warn('Could not sync EPC partners to Supabase:', err);
+      });
+      return next;
+    });
   };
 
   const reorderEpcPartners = (reordered: StrategicPartner[]) => {
     setEpcPartners(reordered);
+    saveEpcPartnersToSupabase(reordered).catch((err) => {
+      console.warn('Could not sync EPC partners to Supabase:', err);
+    });
   };
 
   const resetEpcPartners = () => {
@@ -633,15 +789,30 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Could not reset epcPartners in localStorage:', e);
     }
+    saveEpcPartnersToSupabase(INITIAL_STRATEGIC_PARTNERS).catch((err) => {
+      console.warn('Could not reset EPC partners in Supabase:', err);
+    });
   };
 
   const updateEpcSectionConfig = (updated: Partial<EpcSectionConfig>) => {
-    setEpcSectionConfig((prev) => ({ ...prev, ...updated }));
+    setEpcSectionConfig((prev) => {
+      const next = { ...prev, ...updated };
+      saveEpcConfigToSupabase(next).catch((err) => {
+        console.warn('Could not sync EPC config to Supabase:', err);
+      });
+      return next;
+    });
   };
 
   // About Us Information mutation handlers
   const updateAboutInfo = (updated: Partial<AboutPageInfo>) => {
-    setAboutInfo((prev) => ({ ...prev, ...updated }));
+    setAboutInfo((prev) => {
+      const next = { ...prev, ...updated };
+      saveAboutInfoToSupabase(next).catch((err) => {
+        console.warn('Could not sync About info to Supabase:', err);
+      });
+      return next;
+    });
   };
 
   const resetAboutInfo = () => {
@@ -651,6 +822,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Could not reset aboutInfo in localStorage:', e);
     }
+    saveAboutInfoToSupabase(INITIAL_ABOUT_INFO).catch((err) => {
+      console.warn('Could not reset About info in Supabase:', err);
+    });
   };
 
   const updateLeadershipHead = (idOrName: string, updated: Partial<LeadershipHead>) => {
@@ -733,7 +907,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Could not save media items to localStorage (quota exceeded):', e);
       try {
         // Fallback: prune oldest items to ensure critical updates are saved
-        const pruned = mediaItems.slice(0, 25);
+        const pruned = mediaItems.slice(0, 20);
         localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(pruned));
       } catch {
         // Silently preserve in-memory
@@ -751,28 +925,43 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateProject = (id: string, updated: Partial<ProjectCaseStudy>) => {
     setProjects((prev) => {
-      return prev.map((p) => {
+      const next = prev.map((p) => {
         if (p.id === id) {
-          return { ...p, ...updated };
+          const updatedProj = { ...p, ...updated };
+          saveProjectToSupabase(updatedProj).catch((err) => {
+            console.warn('Could not sync project update to Supabase:', err);
+          });
+          return updatedProj;
         }
         return p;
       });
+      return next;
     });
   };
 
   const addProject = (newProject: ProjectCaseStudy) => {
     setProjects((prev) => [newProject, ...prev]);
+    saveProjectToSupabase(newProject).catch((err) => {
+      console.warn('Could not sync new project to Supabase:', err);
+    });
   };
 
   const deleteProject = (id: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== id));
+    deleteProjectFromSupabase(id).catch((err) => {
+      console.warn('Could not delete project from Supabase:', err);
+    });
   };
 
   const updateArticle = (id: string, updated: Partial<JournalArticle>) => {
     setArticles((prev) =>
       prev.map((a) => {
         if (a.id === id) {
-          return { ...a, ...updated };
+          const updatedArt = { ...a, ...updated };
+          saveArticleToSupabase(updatedArt).catch((err) => {
+            console.warn('Could not sync article update to Supabase:', err);
+          });
+          return updatedArt;
         }
         return a;
       })
@@ -781,13 +970,44 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addArticle = (newArticle: JournalArticle) => {
     setArticles((prev) => [newArticle, ...prev]);
+    saveArticleToSupabase(newArticle).catch((err) => {
+      console.warn('Could not sync new article to Supabase:', err);
+    });
   };
 
   const deleteArticle = (id: string) => {
     setArticles((prev) => prev.filter((a) => a.id !== id));
+    deleteArticleFromSupabase(id).catch((err) => {
+      console.warn('Could not delete article from Supabase:', err);
+    });
   };
 
   const uploadImageFile = async (file: File, category: MediaItem['category'] = 'general'): Promise<MediaItem> => {
+    // 1. Attempt direct upload to Supabase Storage 'media' bucket
+    try {
+      const storageResult = await uploadFileToSupabaseStorage(file, 'media', category);
+      if (storageResult && storageResult.publicUrl) {
+        const newMedia: MediaItem = {
+          id: `storage-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          name: storageResult.name || file.name.replace(/\.[^/.]+$/, ''),
+          url: storageResult.publicUrl,
+          size: storageResult.size,
+          dimensions: 'Supabase Storage',
+          uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          category
+        };
+
+        setMediaItems((prev) => [newMedia, ...prev]);
+        saveMediaItemToSupabase(newMedia).catch((err) => {
+          console.warn('Could not save uploaded media item metadata to Supabase:', err);
+        });
+        return newMedia;
+      }
+    } catch (storageErr) {
+      console.warn('Supabase storage upload attempt encountered error, trying optimized compression:', storageErr);
+    }
+
+    // 2. Fallback: Compress and optimize image data URL
     try {
       const optimized = await compressAndOptimizeImage(file);
       const newMedia: MediaItem = {
@@ -801,9 +1021,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setMediaItems((prev) => [newMedia, ...prev]);
+      saveMediaItemToSupabase(newMedia).catch((err) => {
+        console.warn('Could not save uploaded media item to Supabase:', err);
+      });
       return newMedia;
     } catch (err) {
       console.error('Failed to compress and upload image:', err);
+      // Fallback
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -819,6 +1043,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             category
           };
           setMediaItems((prev) => [newMedia, ...prev]);
+          saveMediaItemToSupabase(newMedia).catch((saveErr) => {
+            console.warn('Could not save uploaded media fallback to Supabase:', saveErr);
+          });
           resolve(newMedia);
         };
         reader.onerror = (e) => reject(e);
@@ -829,13 +1056,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addMediaItem = (item: MediaItem) => {
     setMediaItems((prev) => [item, ...prev]);
+    saveMediaItemToSupabase(item).catch((err) => {
+      console.warn('Could not save media item to Supabase:', err);
+    });
   };
 
   const updateMediaItem = (id: string, updated: Partial<MediaItem>) => {
     setMediaItems((prev) =>
       prev.map((m) => {
         if (m.id === id) {
-          return { ...m, ...updated };
+          const next = { ...m, ...updated };
+          saveMediaItemToSupabase(next).catch((err) => {
+            console.warn('Could not update media item in Supabase:', err);
+          });
+          return next;
         }
         return m;
       })
@@ -848,12 +1082,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       prev.map((m) => {
         if (m.id === id) {
           oldUrl = m.url;
-          return {
+          const next = {
             ...m,
             url: newUrl,
             name: newName || m.name,
             uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           };
+          saveMediaItemToSupabase(next).catch((err) => {
+            console.warn('Could not sync replaced media item to Supabase:', err);
+          });
+          return next;
         }
         return m;
       })
@@ -914,6 +1152,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteMediaItem = (id: string) => {
     setMediaItems((prev) => prev.filter((m) => m.id !== id));
+    deleteMediaItemFromSupabase(id).catch((err) => {
+      console.warn('Could not delete media item from Supabase:', err);
+    });
   };
 
   const addConsultationRequest = (request: Omit<ConsultationRequest, 'id' | 'submittedAt'>): ConsultationRequest => {
@@ -923,22 +1164,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       submittedAt: new Date().toISOString()
     };
     setConsultationRequests((prev) => [newRecord, ...prev]);
+    saveConsultationToSupabase(newRecord).catch((err) => {
+      console.warn('Could not sync consultation request to Supabase:', err);
+    });
     return newRecord;
   };
 
   const updateConsultationStatus = (id: string, status: ConsultationRequest['status']) => {
     setConsultationRequests((prev) => {
-      return prev.map((c) => {
+      const next = prev.map((c) => {
         if (c.id === id) {
-          return { ...c, status };
+          const updated = { ...c, status };
+          saveConsultationToSupabase(updated).catch((err) => {
+            console.warn('Could not update consultation status in Supabase:', err);
+          });
+          return updated;
         }
         return c;
       });
+      return next;
     });
   };
 
   const deleteConsultationRequest = (id: string) => {
     setConsultationRequests((prev) => prev.filter((c) => c.id !== id));
+    deleteConsultationFromSupabase(id).catch((err) => {
+      console.warn('Could not delete consultation from Supabase:', err);
+    });
   };
 
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
@@ -1037,13 +1289,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       exportedAt: timestamp,
       projectsCount: projects.length,
       articlesCount: articles.length,
-      consultationsCount: consultationRequests.length,
       projects,
-      articles,
-      consultations: consultationRequests,
-      branding,
-      epcPartners,
-      aboutInfo
+      articles
     };
   };
 
