@@ -1,14 +1,8 @@
 node_modules/
 build/
+dist/
 coverage/
 .DS_Store
 *.log
 .env*
 !.env.example
-uploads/
-
-private/
-*.sqlite
-*.sqlite-wal
-*.sqlite-shm
-ADMIN-LOGIN.json
