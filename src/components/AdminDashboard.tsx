@@ -61,6 +61,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     updateConsultationStatus,
     deleteConsultationRequest,
     isServerSyncing,
+    serverError,
     lastServerSyncTime,
     refreshServerData
   } = useData();
@@ -323,11 +324,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-extrabold text-[#00356a]">
-                HOKI Server-Side JSON Storage Engine
+                Website Content Storage
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#006e21]/15 text-[#006e21] border border-[#006e21]/30">
                 <span className={`w-2 h-2 rounded-full ${isServerSyncing ? 'bg-amber-500 animate-ping' : 'bg-[#006e21]'}`} />
-                {isServerSyncing ? 'Synchronizing with Server...' : 'Live Multi-Device Sync Active'}
+                {serverError ? 'Storage needs attention' : isServerSyncing ? 'Synchronizing with Server...' : lastServerSyncTime ? 'Server connected' : 'Connecting...'}
               </span>
               {lastServerSyncTime && (
                 <span className="text-[10px] text-[#00356a]/60 font-mono">
@@ -336,14 +337,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
             </div>
             <p className="text-xs text-[#00356a]/70 mt-0.5">
-              All project dossiers, knowledge monographs, EPC partners, and client consultation leads are saved directly to server JSON files and instantly synchronized across all devices and visitors.
+              Content is stored on this hosting account. After saving, reload the public website to see the latest published version.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 shrink-0 flex-wrap">
           <button
-            onClick={() => refreshServerData()}
+            onClick={() => void refreshServerData().catch(() => {})}
             disabled={isServerSyncing}
             className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-[#f4f6f8] text-[#00356a] border border-[#e5e9ee] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-bubble-sm disabled:opacity-50"
             title="Force refresh data from server"

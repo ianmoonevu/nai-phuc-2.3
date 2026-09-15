@@ -74,6 +74,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       setTimeout(() => setIsShaking(false), 500);
       setPassword('');
       passwordInputRef.current?.focus();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Không kết nối được máy chủ.');
     } finally {
       setIsSubmitting(false);
     }

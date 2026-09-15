@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdvisoryMember,
   AboutPageInfo,
@@ -107,6 +107,7 @@ interface DataContextType {
   consultationRequests: ConsultationRequest[];
   branding: SiteBranding;
   isServerSyncing: boolean;
+  serverError: string | null;
   lastServerSyncTime: string | null;
   refreshServerData: () => Promise<void>;
   updateBranding: (updated: Partial<SiteBranding>) => void;
@@ -168,23 +169,35 @@ const loadLegacy = <T,>(key: ContentKey, fallback: T): T => {
   }
 };
 
+// Keep event updates synchronous without side effects inside React state updaters.
+function useContentState<T>(initial: T | (() => T)): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState(initial);
+  const latest = useRef(value);
+  const update = useCallback((next: React.SetStateAction<T>) => {
+    const result = typeof next === 'function' ? (next as (previous: T) => T)(latest.current) : next;
+    latest.current = result;
+    setValue(result);
+  }, []);
+  return [value, update];
+}
+
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [projects, setProjects] = useState<ProjectCaseStudy[]>(() => {
-    const legacy = loadLegacy<ProjectCaseStudy[]>('projects', PROJECT_CASES);
+  const [projects, setProjects] = useContentState<ProjectCaseStudy[]>(() => {
+    const legacy = PROJECT_CASES;
     return legacy.map((project) => ({
       ...project,
       slug: project.slug ? slugify(project.slug) : slugify(project.title || project.code || project.id)
     }));
   });
-  const [articles, setArticles] = useState<JournalArticle[]>(() => loadLegacy('articles', JOURNAL_ARTICLES));
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => loadLegacy('media', INITIAL_MEDIA_ITEMS));
-  const [consultationRequests, setConsultationRequests] = useState<ConsultationRequest[]>([]);
-  const [branding, setBranding] = useState<SiteBranding>(() => ({ ...DEFAULT_BRANDING, ...loadLegacy('branding', {}) }));
-  const [epcPartners, setEpcPartners] = useState<StrategicPartner[]>(() => loadLegacy('epc_partners', INITIAL_STRATEGIC_PARTNERS));
-  const [epcSectionConfig, setEpcSectionConfig] = useState<EpcSectionConfig>(() => ({ ...INITIAL_EPC_CONFIG, ...loadLegacy('epc_config', {}) }));
-  const [aboutInfo, setAboutInfo] = useState<AboutPageInfo>(() => ({ ...INITIAL_ABOUT_INFO, ...loadLegacy('about_info', {}) }));
-  const [leadershipHeads, setLeadershipHeads] = useState<LeadershipHead[]>(() => loadLegacy('leadership', LEADERSHIP_HEADS));
-  const [advisoryMembers, setAdvisoryMembers] = useState<AdvisoryMember[]>(() => loadLegacy('advisory', ADVISORY_BOARD));
+  const [articles, setArticles] = useContentState<JournalArticle[]>(() => JOURNAL_ARTICLES);
+  const [mediaItems, setMediaItems] = useContentState<MediaItem[]>(() => INITIAL_MEDIA_ITEMS);
+  const [consultationRequests, setConsultationRequests] = useContentState<ConsultationRequest[]>([]);
+  const [branding, setBranding] = useContentState<SiteBranding>(() => ({ ...DEFAULT_BRANDING }));
+  const [epcPartners, setEpcPartners] = useContentState<StrategicPartner[]>(() => INITIAL_STRATEGIC_PARTNERS);
+  const [epcSectionConfig, setEpcSectionConfig] = useContentState<EpcSectionConfig>(() => ({ ...INITIAL_EPC_CONFIG }));
+  const [aboutInfo, setAboutInfo] = useContentState<AboutPageInfo>(() => ({ ...INITIAL_ABOUT_INFO }));
+  const [leadershipHeads, setLeadershipHeads] = useContentState<LeadershipHead[]>(() => LEADERSHIP_HEADS);
+  const [advisoryMembers, setAdvisoryMembers] = useContentState<AdvisoryMember[]>(() => ADVISORY_BOARD);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isServerSyncing, setIsServerSyncing] = useState(false);
   const [lastServerSyncTime, setLastServerSyncTime] = useState<string | null>(null);
@@ -235,21 +248,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (Array.isArray(content.advisory)) setAdvisoryMembers(content.advisory);
   };
 
-  const refreshServerData = async () => {
+  const refreshServerData = async (includePrivate = isAdminAuthenticated) => {
+    await saveQueue.current;
     setIsServerSyncing(true);
     try {
       const response = await apiJson<{ ok: boolean; content: Partial<Record<ContentKey, any>> }>('/api/content');
       applyServerContent(response.content || {});
 
-      if (isAdminAuthenticated) {
+      if (includePrivate) {
         try {
           const consultations = await apiJson<{ ok: boolean; data: ConsultationRequest[] }>('/api/consultations');
           setConsultationRequests(consultations.data || []);
         } catch (error) {
-          console.warn('Could not refresh consultation requests:', error);
+          throw error;
         }
       }
+      setSaveErrors((previous) => { const next = { ...previous }; delete next.connection; return next; });
       markSynced();
+    } catch (error) {
+      setSaveErrors((previous) => ({ ...previous, connection: error instanceof Error ? error.message : 'Không tải được dữ liệu máy chủ.' }));
+      throw error;
     } finally {
       setIsServerSyncing(false);
     }
@@ -274,12 +292,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     (Object.keys(defaults) as ContentKey[]).forEach((key) => {
       if (server[key] === undefined || server[key] === null) {
-        content[key] = defaults[key];
+        content[key] = loadLegacy(key, defaults[key]);
       }
     });
 
     if (Object.keys(content).length > 0) {
-      await apiJson('/api/content/batch', {
+      await apiJson('/api/content/initialize', {
         method: 'POST',
         body: JSON.stringify({ content })
       });
@@ -297,6 +315,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await apiJson('/api/auth/me');
         setIsAdminAuthenticated(true);
+        await refreshServerData(true);
       } catch {
         setIsAdminAuthenticated(false);
       }
@@ -626,12 +645,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSaveErrors({});
       setIsAdminAuthenticated(true);
       await migrateLegacyDataIfNeeded();
-      await refreshServerData();
+      await refreshServerData(true);
       return true;
     } catch (error) {
-      setSaveErrors((previous) => ({ ...previous, login: error instanceof Error ? error.message : 'Đăng nhập thất bại.' }));
       setIsAdminAuthenticated(false);
-      return false;
+      throw error;
     }
   };
 
@@ -669,7 +687,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           advisory: ADVISORY_BOARD
         }
       })
-    }).then(markSynced).catch((error) => console.error('Failed to reset server content:', error));
+    }).then(markSynced).catch((error) => setSaveErrors((previous) => ({ ...previous, reset: error.message })));
   };
 
   const exportBackupData = (type: 'all' | 'projects' | 'knowledge' = 'all') => {
@@ -733,7 +751,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <DataContext.Provider value={{
       projects, articles, mediaItems, consultationRequests, branding,
-      isServerSyncing, lastServerSyncTime, refreshServerData,
+      isServerSyncing: isServerSyncing || pendingSaves > 0, serverError: Object.values(saveErrors)[0] || null, lastServerSyncTime, refreshServerData,
       updateBranding, resetBranding,
       updateProject, addProject, deleteProject,
       updateArticle, addArticle, deleteArticle,

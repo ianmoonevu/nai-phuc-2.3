@@ -4,9 +4,8 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import mysql from 'mysql2/promise';
+import { db, initializeAdmin, SQLiteSessionStore, uploadRoot, transaction } from './server/storage.js';
 import session from 'express-session';
-import MySQLStoreFactory from 'express-mysql-session';
 import bcrypt from 'bcryptjs';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -26,22 +25,15 @@ for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
 const port = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === 'production';
 
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: Number(process.env.DB_POOL_SIZE || 10),
-  queueLimit: 0,
-  charset: 'utf8mb4'
+initializeAdmin();
+const database = {
+  execute(sql, values = []) {
+    const statement = db.prepare(sql);
+    const args = values.map((value) => value instanceof Date ? value.toISOString() : value);
+    return [sql.trimStart().toUpperCase().startsWith('SELECT') ? statement.all(...args) : statement.run(...args)];
+  },
+  query(sql, values = []) { return this.execute(sql, values); }
 };
-
-const dbConfigured = Boolean(dbConfig.user && dbConfig.database);
-let pool = null;
-let databaseReady = false;
-let sessionStore;
 
 const CONTENT_KEYS = new Set([
   'projects',
@@ -63,118 +55,6 @@ function safeJsonParse(value, fallback = null) {
   }
 }
 
-async function ensureSchema(connectionPool) {
-  await connectionPool.execute(`
-    CREATE TABLE IF NOT EXISTS admins (
-      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-      username VARCHAR(100) NOT NULL UNIQUE,
-      password_hash VARCHAR(255) NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-
-  await connectionPool.execute(`
-    CREATE TABLE IF NOT EXISTS site_content (
-      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-      content_key VARCHAR(100) NOT NULL UNIQUE,
-      content_json LONGTEXT NOT NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-
-  await connectionPool.execute(`
-    CREATE TABLE IF NOT EXISTS consultation_requests (
-      id VARCHAR(120) PRIMARY KEY,
-      payload_json LONGTEXT NOT NULL,
-      status VARCHAR(40) NOT NULL DEFAULT 'new',
-      submitted_at DATETIME NOT NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_consultation_status (status),
-      INDEX idx_consultation_submitted_at (submitted_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-
-  await connectionPool.execute(`
-    CREATE TABLE IF NOT EXISTS media_uploads (
-      id VARCHAR(120) PRIMARY KEY,
-      original_name VARCHAR(255) NOT NULL,
-      stored_name VARCHAR(255) NOT NULL,
-      url VARCHAR(500) NOT NULL,
-      mime_type VARCHAR(100) NOT NULL,
-      size_bytes BIGINT UNSIGNED NOT NULL,
-      category VARCHAR(50) NOT NULL DEFAULT 'general',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-}
-
-async function ensureInitialAdmin(connectionPool) {
-  const username = (process.env.ADMIN_USERNAME || '').trim();
-  const password = process.env.ADMIN_PASSWORD || '';
-  if (!username || !password) return;
-
-  const [rows] = await connectionPool.execute(
-    'SELECT id FROM admins WHERE username = ? LIMIT 1',
-    [username]
-  );
-  if (Array.isArray(rows) && rows.length > 0) return;
-
-  const hash = await bcrypt.hash(password, 12);
-  await connectionPool.execute(
-    'INSERT INTO admins (username, password_hash) VALUES (?, ?)',
-    [username, hash]
-  );
-  console.log(`Initial admin account created for ${username}.`);
-}
-
-if (dbConfigured) {
-  try {
-    pool = mysql.createPool(dbConfig);
-    await pool.query('SELECT 1');
-    await ensureSchema(pool);
-    await ensureInitialAdmin(pool);
-    databaseReady = true;
-
-    const MySQLStore = MySQLStoreFactory(session);
-    sessionStore = new MySQLStore(
-      {
-        createDatabaseTable: true,
-        schema: {
-          tableName: 'admin_sessions',
-          columnNames: {
-            session_id: 'session_id',
-            expires: 'expires',
-            data: 'data'
-          }
-        }
-      },
-      pool
-    );
-
-    if (typeof sessionStore.onReady === 'function') {
-      await sessionStore.onReady();
-    }
-
-    console.log('MySQL CMS storage is ready.');
-  } catch (error) {
-    databaseReady = false;
-    sessionStore = undefined;
-    console.error('MySQL configuration exists but database initialization failed. Public site will continue in fallback mode.', error);
-  }
-} else {
-  console.warn('MySQL is not configured yet. Public site will continue in fallback mode; Admin persistence is disabled until DB_USER and DB_NAME are configured.');
-}
-
-function requireDatabase(_req, res, next) {
-  if (databaseReady && pool) return next();
-  return res.status(503).json({
-    ok: false,
-    error: 'Database is not configured or unavailable',
-    database: false
-  });
-}
-
 function requireAdmin(req, res, next) {
   if (req.session?.adminUserId) return next();
   return res.status(401).json({ ok: false, error: 'Authentication required' });
@@ -191,17 +71,17 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 const sessionOptions = {
   name: 'np_admin_session',
-  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+  secret: db.prepare('SELECT value FROM settings WHERE key=?').get('session-secret').value,
+  store: new SQLiteSessionStore(),
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: isProduction,
+    secure: 'auto',
     sameSite: 'lax',
     maxAge: 1000 * 60 * 60 * 8
   }
 };
-if (sessionStore) sessionOptions.store = sessionStore;
 app.use(session(sessionOptions));
 
 const loginLimiter = rateLimit({
@@ -220,33 +100,19 @@ const consultationLimiter = rateLimit({
   message: { ok: false, error: 'Too many requests. Please try again later.' }
 });
 
-app.get('/api/health', async (_req, res) => {
-  if (!databaseReady || !pool) {
-    return res.json({
-      ok: true,
-      database: false,
-      configured: dbConfigured,
-      mode: 'fallback'
-    });
-  }
-
-  try {
-    await pool.query('SELECT 1');
-    return res.json({ ok: true, database: true, configured: true, mode: 'mysql' });
-  } catch {
-    databaseReady = false;
-    return res.status(503).json({ ok: false, database: false, configured: true, mode: 'fallback' });
-  }
+app.get('/api/health', (_req, res) => {
+  db.prepare('SELECT 1').get();
+  res.json({ ok: true, database: true, configured: true, mode: 'sqlite', version: 'sqlite-1' });
 });
 
-app.post('/api/auth/login', loginLimiter, requireDatabase, async (req, res) => {
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
   if (!username || !password) {
     return res.status(400).json({ ok: false, error: 'Username and password are required' });
   }
 
-  const [rows] = await pool.execute(
+  const [rows] = await database.execute(
     'SELECT id, username, password_hash FROM admins WHERE username = ? LIMIT 1',
     [username]
   );
@@ -255,6 +121,7 @@ app.post('/api/auth/login', loginLimiter, requireDatabase, async (req, res) => {
     return res.status(401).json({ ok: false, error: 'Invalid credentials' });
   }
 
+  await new Promise((resolve, reject) => req.session.regenerate((error) => error ? reject(error) : resolve()));
   req.session.adminUserId = admin.id;
   req.session.adminUsername = admin.username;
   await new Promise((resolve, reject) =>
@@ -278,11 +145,7 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.get('/api/content', async (_req, res) => {
-  if (!databaseReady || !pool) {
-    return res.json({ ok: true, content: {}, updatedAt: {}, database: false });
-  }
-
-  const [rows] = await pool.query(
+  const [rows] = await database.query(
     'SELECT content_key, content_json, updated_at FROM site_content'
   );
   const content = {};
@@ -295,13 +158,13 @@ app.get('/api/content', async (_req, res) => {
   return res.json({ ok: true, content, updatedAt, database: true });
 });
 
-app.get('/api/content/:key', requireDatabase, async (req, res) => {
+app.get('/api/content/:key', async (req, res) => {
   const key = req.params.key;
   if (!CONTENT_KEYS.has(key)) {
     return res.status(404).json({ ok: false, error: 'Unknown content key' });
   }
 
-  const [rows] = await pool.execute(
+  const [rows] = await database.execute(
     'SELECT content_json, updated_at FROM site_content WHERE content_key = ? LIMIT 1',
     [key]
   );
@@ -315,7 +178,7 @@ app.get('/api/content/:key', requireDatabase, async (req, res) => {
   });
 });
 
-app.put('/api/content/:key', requireDatabase, requireAdmin, async (req, res) => {
+app.put('/api/content/:key', requireAdmin, async (req, res) => {
   const key = req.params.key;
   if (!CONTENT_KEYS.has(key)) {
     return res.status(404).json({ ok: false, error: 'Unknown content key' });
@@ -330,46 +193,51 @@ app.put('/api/content/:key', requireDatabase, requireAdmin, async (req, res) => 
     return res.status(413).json({ ok: false, error: 'Content payload too large' });
   }
 
-  await pool.execute(
-    `INSERT INTO site_content (content_key, content_json) VALUES (?, ?)
-     ON DUPLICATE KEY UPDATE content_json = VALUES(content_json), updated_at = CURRENT_TIMESTAMP`,
-    [key, json]
+  await database.execute(
+    `INSERT INTO site_content (content_key, content_json, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(content_key) DO UPDATE SET content_json = excluded.content_json, updated_at = excluded.updated_at`,
+    [key, json, new Date().toISOString()]
   );
   return res.json({ ok: true, updatedAt: new Date().toISOString() });
 });
 
-app.post('/api/content/batch', requireDatabase, requireAdmin, async (req, res) => {
+app.post('/api/content/batch', requireAdmin, async (req, res) => {
   const entries = req.body?.content;
   if (!entries || typeof entries !== 'object' || Array.isArray(entries)) {
     return res.status(400).json({ ok: false, error: 'content must be an object' });
   }
 
-  const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
-    for (const [key, value] of Object.entries(entries)) {
-      if (!CONTENT_KEYS.has(key)) continue;
-      const json = JSON.stringify(value);
-      if (Buffer.byteLength(json, 'utf8') > 4 * 1024 * 1024) {
-        throw new Error(`Content payload too large: ${key}`);
+    transaction(() => {
+      for (const [key, value] of Object.entries(entries)) {
+        if (!CONTENT_KEYS.has(key)) throw Object.assign(new Error('Unknown content key'), { status: 400 });
+        const json = JSON.stringify(value);
+        if (Buffer.byteLength(json, 'utf8') > 4 * 1024 * 1024) throw Object.assign(new Error('Content payload too large'), { status: 413 });
+        db.prepare(`INSERT INTO site_content VALUES (?, ?, ?)
+          ON CONFLICT(content_key) DO UPDATE SET content_json=excluded.content_json, updated_at=excluded.updated_at`)
+          .run(key, json, new Date().toISOString());
       }
-      await connection.execute(
-        `INSERT INTO site_content (content_key, content_json) VALUES (?, ?)
-         ON DUPLICATE KEY UPDATE content_json = VALUES(content_json), updated_at = CURRENT_TIMESTAMP`,
-        [key, json]
-      );
-    }
-    await connection.commit();
+    });
     return res.json({ ok: true, updatedAt: new Date().toISOString() });
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
+  } catch (error) { throw error; }
 });
 
-app.post('/api/consultations', consultationLimiter, requireDatabase, async (req, res) => {
+// First-login migration cannot overwrite keys created by another admin.
+app.post('/api/content/initialize', requireAdmin, (req, res) => {
+  const entries = req.body?.content;
+  if (!entries || typeof entries !== 'object' || Array.isArray(entries)) return res.status(400).json({ ok: false, error: 'Invalid content' });
+  transaction(() => {
+    for (const [key, value] of Object.entries(entries)) {
+      if (!CONTENT_KEYS.has(key)) throw Object.assign(new Error('Unknown content key'), { status: 400 });
+      const json = JSON.stringify(value);
+      if (Buffer.byteLength(json) > 4 * 1024 * 1024) throw Object.assign(new Error('Content too large'), { status: 413 });
+      db.prepare('INSERT OR IGNORE INTO site_content VALUES (?, ?, ?)').run(key, json, new Date().toISOString());
+    }
+  });
+  res.json({ ok: true });
+});
+
+app.post('/api/consultations', consultationLimiter, async (req, res) => {
   const body = req.body || {};
   const name = String(body.name || '').trim();
   const firm = String(body.firm || '').trim();
@@ -394,15 +262,15 @@ app.post('/api/consultations', consultationLimiter, requireDatabase, async (req,
     submittedAt: new Date().toISOString()
   };
 
-  await pool.execute(
+  await database.execute(
     'INSERT INTO consultation_requests (id, payload_json, status, submitted_at) VALUES (?, ?, ?, ?)',
     [record.id, JSON.stringify(record), record.status, new Date(record.submittedAt)]
   );
   return res.status(201).json({ ok: true, data: record });
 });
 
-app.get('/api/consultations', requireDatabase, requireAdmin, async (_req, res) => {
-  const [rows] = await pool.query(
+app.get('/api/consultations', requireAdmin, async (_req, res) => {
+  const [rows] = await database.query(
     'SELECT payload_json, status FROM consultation_requests ORDER BY submitted_at DESC'
   );
   const data = rows.map((row) => ({
@@ -412,13 +280,13 @@ app.get('/api/consultations', requireDatabase, requireAdmin, async (_req, res) =
   return res.json({ ok: true, data });
 });
 
-app.patch('/api/consultations/:id', requireDatabase, requireAdmin, async (req, res) => {
+app.patch('/api/consultations/:id', requireAdmin, async (req, res) => {
   const status = String(req.body?.status || '');
   if (!['new', 'reviewed', 'in-progress', 'completed'].includes(status)) {
     return res.status(400).json({ ok: false, error: 'Invalid status' });
   }
 
-  const [rows] = await pool.execute(
+  const [rows] = await database.execute(
     'SELECT payload_json FROM consultation_requests WHERE id = ? LIMIT 1',
     [req.params.id]
   );
@@ -427,19 +295,18 @@ app.patch('/api/consultations/:id', requireDatabase, requireAdmin, async (req, r
   }
 
   const payload = { ...safeJsonParse(rows[0].payload_json, {}), status };
-  await pool.execute(
+  await database.execute(
     'UPDATE consultation_requests SET payload_json = ?, status = ? WHERE id = ?',
     [JSON.stringify(payload), status, req.params.id]
   );
   return res.json({ ok: true, data: payload });
 });
 
-app.delete('/api/consultations/:id', requireDatabase, requireAdmin, async (req, res) => {
-  await pool.execute('DELETE FROM consultation_requests WHERE id = ?', [req.params.id]);
+app.delete('/api/consultations/:id', requireAdmin, async (req, res) => {
+  await database.execute('DELETE FROM consultation_requests WHERE id = ?', [req.params.id]);
   return res.json({ ok: true });
 });
 
-const uploadRoot = path.resolve(__dirname, process.env.UPLOAD_DIR || 'uploads');
 await fs.mkdir(uploadRoot, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -466,7 +333,6 @@ const uploader = multer({
 
 app.post(
   '/api/media/upload',
-  requireDatabase,
   requireAdmin,
   uploader.single('file'),
   async (req, res) => {
@@ -478,7 +344,7 @@ app.post(
     const id = `media-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
     const url = `/uploads/${req.file.filename}`;
 
-    await pool.execute(
+    await database.execute(
       'INSERT INTO media_uploads (id, original_name, stored_name, url, mime_type, size_bytes, category) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [
         id,
@@ -510,9 +376,12 @@ app.post(
   }
 );
 
-app.use('/uploads', express.static(uploadRoot, { maxAge: isProduction ? '30d' : 0 }));
+app.use('/uploads', express.static(uploadRoot, { maxAge: '30d', index: false }));
+// Preserve existing URLs from deployments made before private upload storage.
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { index: false }));
+app.use('/api', (_req, res) => res.status(404).json({ ok: false, error: 'API endpoint not found' }));
 
-if (isProduction) {
+{
   const distDir = path.join(__dirname, 'dist');
   app.use(express.static(distDir, {
     setHeaders(res, filePath) {
@@ -530,15 +399,10 @@ app.use((error, _req, res, _next) => {
   console.error(error);
   const message = isProduction ? 'Server error' : error.message;
   return res
-    .status(error?.code === 'LIMIT_FILE_SIZE' ? 413 : 500)
+    .status(error?.code === 'LIMIT_FILE_SIZE' ? 413 : error.status || 500)
     .json({ ok: false, error: message });
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`HOKI CMS server listening on port ${port}`);
-  console.log(
-    databaseReady
-      ? 'CMS persistence: MySQL enabled'
-      : 'CMS persistence: fallback mode (configure MySQL to enable Admin persistence)'
-  );
+export const httpServer = app.listen(port, '0.0.0.0', () => {
+  console.log(`HOKI CMS ready on port ${httpServer.address()?.port}; SQLite persistence enabled.`);
 });

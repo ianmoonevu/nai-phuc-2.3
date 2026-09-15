@@ -1,0 +1,12 @@
+# No SPA rewrite here: Passenger/Node handles routes including /api/*.
+# Protect source/config when a panel leaves Document Root at the app root.
+<IfModule mod_authz_core.c>
+  <FilesMatch "^(\.env.*|package(-lock)?\.json|.*\.sqlite(-wal|-shm)?|ADMIN-LOGIN\.json)$">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+    Header always set Cache-Control "no-store"
+  </FilesMatch>
+</IfModule>

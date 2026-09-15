@@ -27,6 +27,6 @@ test('only explicit JSON success is accepted and cache is bypassed', async () =>
     globalThis.fetch = async () => Response.json({});
     await assert.rejects(apiJson('/api/content'));
     globalThis.fetch = async () => Response.json({ ok: false }, { status: 503 });
-    await assert.rejects(apiJson('/api/content'), /cơ sở dữ liệu/);
+    await assert.rejects(apiJson('/api/content'), /Bộ lưu trữ/);
   } finally { globalThis.fetch = original; }
 });

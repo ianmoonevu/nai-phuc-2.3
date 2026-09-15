@@ -6,3 +6,9 @@ coverage/
 .env*
 !.env.example
 uploads/
+
+private/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+ADMIN-LOGIN.json
