@@ -1,3 +1,5 @@
+import { PROJECT_CASES } from '../data/mockData';
+import { mergeProjects } from './mergeProjects';
 import { writeDocument } from './documentStore';
 import { getSupabase } from './supabase';
 import {
@@ -184,7 +186,10 @@ export async function fetchProjectsFromSupabase(): Promise<ProjectCaseStudy[] | 
       console.warn('Supabase fetchProjects error:', error.message);
       return null;
     }
-    return (data || []).map(unpackProject);
+    const rows = data || [];
+    const deletedIds = rows.filter(row => row.data?._deleted === true).map(row => row.id);
+    const saved = rows.filter(row => row.data?._deleted !== true).map(unpackProject);
+    return mergeProjects(PROJECT_CASES, saved, deletedIds);
   } catch (err) {
     console.warn('Supabase fetchProjects exception:', err);
     return null;
@@ -199,6 +204,15 @@ export async function saveProjectToSupabase(project: ProjectCaseStudy): Promise<
 export async function deleteProjectFromSupabase(id: string): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;
+
+  // Keep a deletion marker for seeded projects so merging does not restore them.
+  const seed = PROJECT_CASES.find(project => project.id === id);
+  if (seed) {
+    const { data: existing, error } = await supabase.from('projects').select('*').eq('id', id).maybeSingle();
+    if (error) return false;
+    const project = existing ? unpackProject(existing) : seed;
+    return upsertDocument('projects', mapProjectToRow(project), { ...project, _deleted: true }, id);
+  }
 
   try {
     const { error } = await supabase.from('projects').delete().eq('id', id);
