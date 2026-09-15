@@ -249,6 +249,76 @@ const INITIAL_MEDIA_ITEMS: MediaItem[] = [
   }
 ];
 
+interface DataContextType {
+  projects: ProjectCaseStudy[];
+  articles: JournalArticle[];
+  mediaItems: MediaItem[];
+  consultationRequests: ConsultationRequest[];
+  branding: SiteBranding;
+  updateBranding: (updated: Partial<SiteBranding>) => void;
+  resetBranding: () => void;
+  updateProject: (id: string, updated: Partial<ProjectCaseStudy>) => void;
+  addProject: (newProject: ProjectCaseStudy) => void;
+  deleteProject: (id: string) => void;
+  updateArticle: (id: string, updated: Partial<JournalArticle>) => void;
+  addArticle: (newArticle: JournalArticle) => void;
+  deleteArticle: (id: string) => void;
+  uploadImageFile: (file: File, category?: MediaItem['category']) => Promise<MediaItem>;
+  addMediaItem: (item: MediaItem) => void;
+  updateMediaItem: (id: string, updated: Partial<MediaItem>) => void;
+  replaceMediaItem: (id: string, newUrl: string, newName?: string) => void;
+  deleteMediaItem: (id: string) => void;
+  addConsultationRequest: (request: Omit<ConsultationRequest, 'id' | 'submittedAt'>) => ConsultationRequest;
+  updateConsultationStatus: (id: string, status: ConsultationRequest['status']) => void;
+  deleteConsultationRequest: (id: string) => void;
+  resetToDefaults: () => void;
+  toggleProjectHighlight: (id: string) => void;
+  exportBackupData: (type?: 'all' | 'projects' | 'knowledge') => any;
+  importBackupData: (payload: any, mode?: 'merge' | 'replace') => { success: boolean; projectCount: number; articleCount: number; message: string };
+  isAdminAuthenticated: boolean;
+  loginAdmin: (id: string, pass: string) => boolean;
+  logoutAdmin: () => void;
+
+  // EPC Partners (Main Page)
+  epcPartners: StrategicPartner[];
+  updateEpcPartner: (id: string, updated: Partial<StrategicPartner>) => void;
+  addEpcPartner: (partner: Omit<StrategicPartner, 'id'>) => StrategicPartner;
+  deleteEpcPartner: (id: string) => void;
+  reorderEpcPartners: (partners: StrategicPartner[]) => void;
+  resetEpcPartners: () => void;
+  epcSectionConfig: EpcSectionConfig;
+  updateEpcSectionConfig: (updated: Partial<EpcSectionConfig>) => void;
+
+  // About Us Page (Information, Leadership, Advisory Board)
+  aboutInfo: AboutPageInfo;
+  updateAboutInfo: (updated: Partial<AboutPageInfo>) => void;
+  resetAboutInfo: () => void;
+  leadershipHeads: LeadershipHead[];
+  updateLeadershipHead: (idOrName: string, updated: Partial<LeadershipHead>) => void;
+  addLeadershipHead: (head: Omit<LeadershipHead, 'id'>) => LeadershipHead;
+  deleteLeadershipHead: (idOrName: string) => void;
+  resetLeadershipHeads: () => void;
+  advisoryMembers: AdvisoryMember[];
+  updateAdvisoryMember: (idOrName: string, updated: Partial<AdvisoryMember>) => void;
+  addAdvisoryMember: (member: Omit<AdvisoryMember, 'id'>) => AdvisoryMember;
+  deleteAdvisoryMember: (idOrName: string) => void;
+  resetAdvisoryMembers: () => void;
+}
+
+const DataContext = createContext<DataContextType | undefined>(undefined);
+
+const PROJECTS_STORAGE_KEY = 'hoki_projects_v1';
+const ARTICLES_STORAGE_KEY = 'hoki_articles_v1';
+const MEDIA_STORAGE_KEY = 'hoki_media_v1';
+const CONSULTATIONS_STORAGE_KEY = 'hoki_consultations_v1';
+const ADMIN_AUTH_KEY = 'hoki_admin_auth_session';
+const BRANDING_STORAGE_KEY = 'hoki_branding_v1';
+const EPC_PARTNERS_STORAGE_KEY = 'hoki_epc_partners_v1';
+const EPC_CONFIG_STORAGE_KEY = 'hoki_epc_config_v1';
+const ABOUT_INFO_STORAGE_KEY = 'hoki_about_info_v1';
+const LEADERSHIP_STORAGE_KEY = 'hoki_leadership_v1';
+const ADVISORY_STORAGE_KEY = 'hoki_advisory_v1';
+
 const DEFAULT_BRANDING: SiteBranding = {
   headerLogoUrl: '',
   headerLogoHeight: 44,
@@ -299,81 +369,7 @@ const DEFAULT_BRANDING: SiteBranding = {
   }
 };
 
-interface DataContextType {
-  projects: ProjectCaseStudy[];
-  articles: JournalArticle[];
-  mediaItems: MediaItem[];
-  consultationRequests: ConsultationRequest[];
-  branding: SiteBranding;
-  isServerSyncing: boolean;
-  lastServerSyncTime: string | null;
-  refreshServerData: () => Promise<void>;
-  updateBranding: (updated: Partial<SiteBranding>) => void;
-  resetBranding: () => void;
-  updateProject: (id: string, updated: Partial<ProjectCaseStudy>) => void;
-  addProject: (newProject: ProjectCaseStudy) => void;
-  deleteProject: (id: string) => void;
-  updateArticle: (id: string, updated: Partial<JournalArticle>) => void;
-  addArticle: (newArticle: JournalArticle) => void;
-  deleteArticle: (id: string) => void;
-  uploadImageFile: (file: File, category?: MediaItem['category']) => Promise<MediaItem>;
-  addMediaItem: (item: MediaItem) => void;
-  updateMediaItem: (id: string, updated: Partial<MediaItem>) => void;
-  replaceMediaItem: (id: string, newUrl: string, newName?: string) => void;
-  deleteMediaItem: (id: string) => void;
-  addConsultationRequest: (request: Omit<ConsultationRequest, 'id' | 'submittedAt'>) => Promise<ConsultationRequest>;
-  updateConsultationStatus: (id: string, status: ConsultationRequest['status']) => void;
-  deleteConsultationRequest: (id: string) => void;
-  resetToDefaults: () => void;
-  toggleProjectHighlight: (id: string) => void;
-  exportBackupData: (type?: 'all' | 'projects' | 'knowledge') => any;
-  importBackupData: (payload: any, mode?: 'merge' | 'replace') => Promise<{ success: boolean; projectCount: number; articleCount: number; message: string }>;
-  isAdminAuthenticated: boolean;
-  loginAdmin: (id: string, pass: string) => boolean;
-  logoutAdmin: () => void;
-
-  // EPC Partners (Main Page)
-  epcPartners: StrategicPartner[];
-  updateEpcPartner: (id: string, updated: Partial<StrategicPartner>) => void;
-  addEpcPartner: (partner: Omit<StrategicPartner, 'id'>) => StrategicPartner;
-  deleteEpcPartner: (id: string) => void;
-  reorderEpcPartners: (partners: StrategicPartner[]) => void;
-  resetEpcPartners: () => void;
-  epcSectionConfig: EpcSectionConfig;
-  updateEpcSectionConfig: (updated: Partial<EpcSectionConfig>) => void;
-
-  // About Us Page (Information, Leadership, Advisory Board)
-  aboutInfo: AboutPageInfo;
-  updateAboutInfo: (updated: Partial<AboutPageInfo>) => void;
-  resetAboutInfo: () => void;
-  leadershipHeads: LeadershipHead[];
-  updateLeadershipHead: (idOrName: string, updated: Partial<LeadershipHead>) => void;
-  addLeadershipHead: (head: Omit<LeadershipHead, 'id'>) => LeadershipHead;
-  deleteLeadershipHead: (idOrName: string) => void;
-  resetLeadershipHeads: () => void;
-  advisoryMembers: AdvisoryMember[];
-  updateAdvisoryMember: (idOrName: string, updated: Partial<AdvisoryMember>) => void;
-  addAdvisoryMember: (member: Omit<AdvisoryMember, 'id'>) => AdvisoryMember;
-  deleteAdvisoryMember: (idOrName: string) => void;
-  resetAdvisoryMembers: () => void;
-}
-
-const DataContext = createContext<DataContextType | undefined>(undefined);
-
-const PROJECTS_STORAGE_KEY = 'hoki_projects_v1';
-const ARTICLES_STORAGE_KEY = 'hoki_articles_v1';
-const MEDIA_STORAGE_KEY = 'hoki_media_v1';
-const CONSULTATIONS_STORAGE_KEY = 'hoki_consultations_v1';
-const ADMIN_AUTH_KEY = 'hoki_admin_auth_session';
-const BRANDING_STORAGE_KEY = 'hoki_branding_v1';
-const EPC_PARTNERS_STORAGE_KEY = 'hoki_epc_partners_v1';
-const EPC_CONFIG_STORAGE_KEY = 'hoki_epc_config_v1';
-const ABOUT_INFO_STORAGE_KEY = 'hoki_about_info_v1';
-const LEADERSHIP_STORAGE_KEY = 'hoki_leadership_v1';
-const ADVISORY_STORAGE_KEY = 'hoki_advisory_v1';
-
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Initial local state with fallback directly to constant embedded data
   const [projects, setProjects] = useState<ProjectCaseStudy[]>(() => {
     try {
       const stored = localStorage.getItem(PROJECTS_STORAGE_KEY);
@@ -387,7 +383,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch {
-      // fallback
+      // fallback to mock
     }
     return PROJECT_CASES;
   });
@@ -397,10 +393,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem(ARTICLES_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       }
     } catch {
-      // fallback
+      // fallback to mock
     }
     return JOURNAL_ARTICLES;
   });
@@ -410,7 +408,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem(MEDIA_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       }
     } catch {
       // fallback
@@ -423,7 +423,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem(CONSULTATIONS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       }
     } catch {
       // fallback
@@ -455,6 +457,40 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return DEFAULT_BRANDING;
   });
 
+  // Sync favicon with DOM
+  useEffect(() => {
+    const iconUrl = branding.faviconUrl || '/favicon.svg';
+    let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.href = iconUrl;
+  }, [branding.faviconUrl]);
+
+  const updateBranding = (updated: Partial<SiteBranding>) => {
+    setBranding((prev) => {
+      const next = { ...prev, ...updated };
+      try {
+        localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Could not save branding to localStorage:', e);
+      }
+      return next;
+    });
+  };
+
+  const resetBranding = () => {
+    setBranding(DEFAULT_BRANDING);
+    try {
+      localStorage.removeItem(BRANDING_STORAGE_KEY);
+    } catch (e) {
+      console.warn('Could not reset branding in localStorage:', e);
+    }
+  };
+
+  // EPC Partners State (Main Page)
   const [epcPartners, setEpcPartners] = useState<StrategicPartner[]>(() => {
     try {
       const stored = localStorage.getItem(EPC_PARTNERS_STORAGE_KEY);
@@ -478,6 +514,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return INITIAL_EPC_CONFIG;
   });
 
+  // About Us State (Origin, Story, Leadership, Advisory Board)
   const [aboutInfo, setAboutInfo] = useState<AboutPageInfo>(() => {
     try {
       const stored = localStorage.getItem(ABOUT_INFO_STORAGE_KEY);
@@ -514,65 +551,57 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return ADVISORY_BOARD;
   });
 
-  // Zero-latency instant local status
-  const isServerSyncing = false;
-  const lastServerSyncTime = 'Local Instant Cache Ready';
-  const refreshServerData = async () => {
-    // Pure instant local refresh
-    return Promise.resolve();
-  };
-
-  // Sync favicon with DOM
+  // EPC & About Us LocalStorage synchronization
   useEffect(() => {
-    const iconUrl = branding.faviconUrl || '/favicon.svg';
-    let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.head.appendChild(link);
-    }
-    link.href = iconUrl;
-  }, [branding.faviconUrl]);
-
-  // --- BRANDING ACTIONS ---
-  const updateBranding = (updated: Partial<SiteBranding>) => {
-    setBranding((prev) => {
-      const next = { ...prev, ...updated };
-      try {
-        localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(next));
-      } catch (e) {
-        console.warn('Could not save branding to localStorage:', e);
-      }
-      return next;
-    });
-  };
-
-  const resetBranding = () => {
-    setBranding(DEFAULT_BRANDING);
     try {
-      localStorage.removeItem(BRANDING_STORAGE_KEY);
+      localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(epcPartners));
     } catch (e) {
-      console.warn('Could not reset branding in localStorage:', e);
+      console.warn('Could not save epcPartners to localStorage:', e);
     }
-  };
+  }, [epcPartners]);
 
-  // --- EPC PARTNERS ACTIONS ---
+  useEffect(() => {
+    try {
+      localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(epcSectionConfig));
+    } catch (e) {
+      console.warn('Could not save epcSectionConfig to localStorage:', e);
+    }
+  }, [epcSectionConfig]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(aboutInfo));
+    } catch (e) {
+      console.warn('Could not save aboutInfo to localStorage:', e);
+    }
+  }, [aboutInfo]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(leadershipHeads));
+    } catch (e) {
+      console.warn('Could not save leadershipHeads to localStorage:', e);
+    }
+  }, [leadershipHeads]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(advisoryMembers));
+    } catch (e) {
+      console.warn('Could not save advisoryMembers to localStorage:', e);
+    }
+  }, [advisoryMembers]);
+
+  // EPC Partners mutation handlers
   const updateEpcPartner = (id: string, updated: Partial<StrategicPartner>) => {
     setEpcPartners((prev) => {
-      const next = prev.map((p) => {
+      return prev.map((p) => {
         if (p.id === id) {
-          const subtitle =
-            updated.subtitle !== undefined
-              ? updated.subtitle
-              : updated.role !== undefined
-              ? updated.role
-              : p.subtitle;
+          const subtitle = updated.subtitle !== undefined ? updated.subtitle : (updated.role !== undefined ? updated.role : p.subtitle);
           return { ...p, ...updated, subtitle, role: subtitle };
         }
         return p;
       });
-      localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(next));
-      return next;
     });
   };
 
@@ -583,68 +612,51 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subtitle: partner.subtitle || partner.role || 'Strategic EPC Partner',
       role: partner.subtitle || partner.role || 'Strategic EPC Partner'
     };
-    setEpcPartners((prev) => {
-      const next = [...prev, newPartner];
-      localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setEpcPartners((prev) => [...prev, newPartner]);
     return newPartner;
   };
 
   const deleteEpcPartner = (id: string) => {
-    setEpcPartners((prev) => {
-      const next = prev.filter((p) => p.id !== id);
-      localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setEpcPartners((prev) => prev.filter((p) => p.id !== id));
   };
 
   const reorderEpcPartners = (reordered: StrategicPartner[]) => {
     setEpcPartners(reordered);
-    localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(reordered));
   };
 
   const resetEpcPartners = () => {
     setEpcPartners(INITIAL_STRATEGIC_PARTNERS);
     setEpcSectionConfig(INITIAL_EPC_CONFIG);
-    localStorage.setItem(EPC_PARTNERS_STORAGE_KEY, JSON.stringify(INITIAL_STRATEGIC_PARTNERS));
-    localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(INITIAL_EPC_CONFIG));
+    try {
+      localStorage.removeItem(EPC_PARTNERS_STORAGE_KEY);
+      localStorage.removeItem(EPC_CONFIG_STORAGE_KEY);
+    } catch (e) {
+      console.warn('Could not reset epcPartners in localStorage:', e);
+    }
   };
 
   const updateEpcSectionConfig = (updated: Partial<EpcSectionConfig>) => {
-    setEpcSectionConfig((prev) => {
-      const next = { ...prev, ...updated };
-      localStorage.setItem(EPC_CONFIG_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setEpcSectionConfig((prev) => ({ ...prev, ...updated }));
   };
 
-  // --- ABOUT US, LEADERSHIP & ADVISORY ACTIONS ---
+  // About Us Information mutation handlers
   const updateAboutInfo = (updated: Partial<AboutPageInfo>) => {
-    setAboutInfo((prev) => {
-      const next = { ...prev, ...updated };
-      localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setAboutInfo((prev) => ({ ...prev, ...updated }));
   };
 
   const resetAboutInfo = () => {
     setAboutInfo(INITIAL_ABOUT_INFO);
-    setLeadershipHeads(LEADERSHIP_HEADS);
-    setAdvisoryMembers(ADVISORY_BOARD);
-    localStorage.setItem(ABOUT_INFO_STORAGE_KEY, JSON.stringify(INITIAL_ABOUT_INFO));
-    localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(LEADERSHIP_HEADS));
-    localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(ADVISORY_BOARD));
+    try {
+      localStorage.removeItem(ABOUT_INFO_STORAGE_KEY);
+    } catch (e) {
+      console.warn('Could not reset aboutInfo in localStorage:', e);
+    }
   };
 
   const updateLeadershipHead = (idOrName: string, updated: Partial<LeadershipHead>) => {
-    setLeadershipHeads((prev) => {
-      const next = prev.map((h) =>
-        h.id === idOrName || h.name === idOrName ? { ...h, ...updated } : h
-      );
-      localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setLeadershipHeads((prev) =>
+      prev.map((h) => (h.id === idOrName || h.name === idOrName ? { ...h, ...updated } : h))
+    );
   };
 
   const addLeadershipHead = (head: Omit<LeadershipHead, 'id'>): LeadershipHead => {
@@ -652,35 +664,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...head,
       id: `lead-${Date.now()}`
     };
-    setLeadershipHeads((prev) => {
-      const next = [...prev, newHead];
-      localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setLeadershipHeads((prev) => [...prev, newHead]);
     return newHead;
   };
 
   const deleteLeadershipHead = (idOrName: string) => {
-    setLeadershipHeads((prev) => {
-      const next = prev.filter((h) => h.id !== idOrName && h.name !== idOrName);
-      localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setLeadershipHeads((prev) => prev.filter((h) => h.id !== idOrName && h.name !== idOrName));
   };
 
   const resetLeadershipHeads = () => {
     setLeadershipHeads(LEADERSHIP_HEADS);
-    localStorage.setItem(LEADERSHIP_STORAGE_KEY, JSON.stringify(LEADERSHIP_HEADS));
+    try {
+      localStorage.removeItem(LEADERSHIP_STORAGE_KEY);
+    } catch (e) {
+      console.warn('Could not reset leadershipHeads in localStorage:', e);
+    }
   };
 
   const updateAdvisoryMember = (idOrName: string, updated: Partial<AdvisoryMember>) => {
-    setAdvisoryMembers((prev) => {
-      const next = prev.map((m) =>
-        m.id === idOrName || m.name === idOrName ? { ...m, ...updated } : m
-      );
-      localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setAdvisoryMembers((prev) =>
+      prev.map((m) => (m.id === idOrName || m.name === idOrName ? { ...m, ...updated } : m))
+    );
   };
 
   const addAdvisoryMember = (member: Omit<AdvisoryMember, 'id'>): AdvisoryMember => {
@@ -688,90 +692,102 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...member,
       id: `adv-${Date.now()}`
     };
-    setAdvisoryMembers((prev) => {
-      const next = [...prev, newMember];
-      localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setAdvisoryMembers((prev) => [...prev, newMember]);
     return newMember;
   };
 
   const deleteAdvisoryMember = (idOrName: string) => {
-    setAdvisoryMembers((prev) => {
-      const next = prev.filter((m) => m.id !== idOrName && m.name !== idOrName);
-      localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setAdvisoryMembers((prev) => prev.filter((m) => m.id !== idOrName && m.name !== idOrName));
   };
 
   const resetAdvisoryMembers = () => {
     setAdvisoryMembers(ADVISORY_BOARD);
-    localStorage.setItem(ADVISORY_STORAGE_KEY, JSON.stringify(ADVISORY_BOARD));
+    try {
+      localStorage.removeItem(ADVISORY_STORAGE_KEY);
+    } catch (e) {
+      console.warn('Could not reset advisoryMembers in localStorage:', e);
+    }
   };
 
-  // --- PROJECTS ACTIONS ---
+  // Sync to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+    } catch (e) {
+      console.warn('Could not save projects to localStorage:', e);
+    }
+  }, [projects]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(articles));
+    } catch (e) {
+      console.warn('Could not save articles to localStorage:', e);
+    }
+  }, [articles]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(mediaItems));
+    } catch (e) {
+      console.warn('Could not save media items to localStorage (quota exceeded):', e);
+      try {
+        // Fallback: prune oldest items to ensure critical updates are saved
+        const pruned = mediaItems.slice(0, 25);
+        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(pruned));
+      } catch {
+        // Silently preserve in-memory
+      }
+    }
+  }, [mediaItems]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(consultationRequests));
+    } catch (e) {
+      console.warn('Could not save consultations to localStorage:', e);
+    }
+  }, [consultationRequests]);
+
   const updateProject = (id: string, updated: Partial<ProjectCaseStudy>) => {
     setProjects((prev) => {
-      const next = prev.map((p) => (p.id === id ? { ...p, ...updated } : p));
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
-      return next;
+      return prev.map((p) => {
+        if (p.id === id) {
+          return { ...p, ...updated };
+        }
+        return p;
+      });
     });
   };
 
   const addProject = (newProject: ProjectCaseStudy) => {
-    setProjects((prev) => {
-      const next = [newProject, ...prev];
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setProjects((prev) => [newProject, ...prev]);
   };
 
   const deleteProject = (id: string) => {
-    setProjects((prev) => {
-      const next = prev.filter((p) => p.id !== id);
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setProjects((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const toggleProjectHighlight = (id: string) => {
-    setProjects((prev) => {
-      const updated = prev.map((p) => (p.id === id ? { ...p, isHighlight: !p.isHighlight } : p));
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  // --- ARTICLES ACTIONS ---
   const updateArticle = (id: string, updated: Partial<JournalArticle>) => {
-    setArticles((prev) => {
-      const next = prev.map((a) => (a.id === id ? { ...a, ...updated } : a));
-      localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setArticles((prev) =>
+      prev.map((a) => {
+        if (a.id === id) {
+          return { ...a, ...updated };
+        }
+        return a;
+      })
+    );
   };
 
   const addArticle = (newArticle: JournalArticle) => {
-    setArticles((prev) => {
-      const next = [newArticle, ...prev];
-      localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setArticles((prev) => [newArticle, ...prev]);
   };
 
   const deleteArticle = (id: string) => {
-    setArticles((prev) => {
-      const next = prev.filter((a) => a.id !== id);
-      localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setArticles((prev) => prev.filter((a) => a.id !== id));
   };
 
-  // --- MEDIA ACTIONS ---
-  const uploadImageFile = async (
-    file: File,
-    category: MediaItem['category'] = 'general'
-  ): Promise<MediaItem> => {
+  const uploadImageFile = async (file: File, category: MediaItem['category'] = 'general'): Promise<MediaItem> => {
     try {
       const optimized = await compressAndOptimizeImage(file);
       const newMedia: MediaItem = {
@@ -780,24 +796,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         url: optimized.dataUrl,
         size: optimized.size,
         dimensions: optimized.dimensions,
-        uploadedAt: new Date().toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric'
-        }),
+        uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         category
       };
 
-      setMediaItems((prev) => {
-        const next = [newMedia, ...prev];
-        try {
-          localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
-        } catch {
-          // ignore quota limit
-        }
-        return next;
-      });
-
+      setMediaItems((prev) => [newMedia, ...prev]);
       return newMedia;
     } catch (err) {
       console.error('Failed to compress and upload image:', err);
@@ -812,23 +815,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             url: dataUrl,
             size: `${sizeInKb} KB`,
             dimensions: 'User Upload',
-            uploadedAt: new Date().toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric'
-            }),
+            uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             category
           };
-          setMediaItems((prev) => {
-            const next = [newMedia, ...prev];
-            try {
-              localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
-            } catch {
-              // ignore quota
-            }
-            return next;
-          });
-
+          setMediaItems((prev) => [newMedia, ...prev]);
           resolve(newMedia);
         };
         reader.onerror = (e) => reject(e);
@@ -838,60 +828,41 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addMediaItem = (item: MediaItem) => {
-    setMediaItems((prev) => {
-      const next = [item, ...prev];
-      try {
-        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+    setMediaItems((prev) => [item, ...prev]);
   };
 
   const updateMediaItem = (id: string, updated: Partial<MediaItem>) => {
-    setMediaItems((prev) => {
-      const next = prev.map((m) => (m.id === id ? { ...m, ...updated } : m));
-      try {
-        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+    setMediaItems((prev) =>
+      prev.map((m) => {
+        if (m.id === id) {
+          return { ...m, ...updated };
+        }
+        return m;
+      })
+    );
   };
 
   const replaceMediaItem = (id: string, newUrl: string, newName?: string) => {
     let oldUrl = '';
-    setMediaItems((prev) => {
-      const next = prev.map((m) => {
+    setMediaItems((prev) =>
+      prev.map((m) => {
         if (m.id === id) {
           oldUrl = m.url;
           return {
             ...m,
             url: newUrl,
             name: newName || m.name,
-            uploadedAt: new Date().toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric'
-            })
+            uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           };
         }
         return m;
-      });
-      try {
-        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+      })
+    );
 
     if (oldUrl) {
-      // Automatically update projects referencing the old URL
-      setProjects((prev) => {
-        const next = prev.map((p) => {
+      // Automatically update any projects referencing the old URL
+      setProjects((prev) =>
+        prev.map((p) => {
           let updatedProj = { ...p };
           let changed = false;
           if (p.image === oldUrl) {
@@ -911,14 +882,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           return changed ? updatedProj : p;
-        });
-        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
+        })
+      );
 
-      // Automatically update articles referencing the old URL
-      setArticles((prev) => {
-        const next = prev.map((a) => {
+      // Automatically update any articles referencing the old URL
+      setArticles((prev) =>
+        prev.map((a) => {
           let updatedArt = { ...a };
           let changed = false;
           if (a.image === oldUrl) {
@@ -938,88 +907,40 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           return changed ? updatedArt : a;
-        });
-        localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
+        })
+      );
     }
   };
 
   const deleteMediaItem = (id: string) => {
-    setMediaItems((prev) => {
-      const next = prev.filter((m) => m.id !== id);
-      try {
-        localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+    setMediaItems((prev) => prev.filter((m) => m.id !== id));
   };
 
-  // --- CONSULTATIONS & LEADS ACTIONS ---
-  const addConsultationRequest = async (
-    request: Omit<ConsultationRequest, 'id' | 'submittedAt'>
-  ): Promise<ConsultationRequest> => {
+  const addConsultationRequest = (request: Omit<ConsultationRequest, 'id' | 'submittedAt'>): ConsultationRequest => {
     const newRecord: ConsultationRequest = {
       ...request,
       id: `req-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       submittedAt: new Date().toISOString()
     };
-
-    setConsultationRequests((prev) => {
-      const next = [newRecord, ...prev];
-      try {
-        localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
-      } catch (e) {
-        console.warn('Could not save consultations to localStorage:', e);
-      }
-      return next;
-    });
-
-    // Optional webhook trigger if configured
-    try {
-      const webhookUrl = (window as any).__HOKI_WEBHOOK_URL__ || (import.meta as any).env?.VITE_WEBHOOK_URL;
-      if (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('http')) {
-        fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newRecord),
-          mode: 'no-cors'
-        }).catch((err) => console.warn('External webhook notification attempt:', err));
-      }
-    } catch {
-      // Ignore
-    }
-
+    setConsultationRequests((prev) => [newRecord, ...prev]);
     return newRecord;
   };
 
   const updateConsultationStatus = (id: string, status: ConsultationRequest['status']) => {
     setConsultationRequests((prev) => {
-      const next = prev.map((c) => (c.id === id ? { ...c, status } : c));
-      try {
-        localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
-      } catch (e) {
-        console.warn('Could not save consultation status:', e);
-      }
-      return next;
+      return prev.map((c) => {
+        if (c.id === id) {
+          return { ...c, status };
+        }
+        return c;
+      });
     });
   };
 
   const deleteConsultationRequest = (id: string) => {
-    setConsultationRequests((prev) => {
-      const next = prev.filter((c) => c.id !== id);
-      try {
-        localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(next));
-      } catch (e) {
-        console.warn('Could not save consultation deletion:', e);
-      }
-      return next;
-    });
+    setConsultationRequests((prev) => prev.filter((c) => c.id !== id));
   };
 
-  // --- ADMIN AUTH ---
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     try {
       return sessionStorage.getItem(ADMIN_AUTH_KEY) === 'true';
@@ -1051,7 +972,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // --- SYSTEM RESET & BACKUP ACTIONS ---
   const resetToDefaults = () => {
     setProjects(PROJECT_CASES);
     setArticles(JOURNAL_ARTICLES);
@@ -1063,17 +983,32 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAboutInfo(INITIAL_ABOUT_INFO);
     setLeadershipHeads(LEADERSHIP_HEADS);
     setAdvisoryMembers(ADVISORY_BOARD);
+    try {
+      localStorage.removeItem(PROJECTS_STORAGE_KEY);
+      localStorage.removeItem(ARTICLES_STORAGE_KEY);
+      localStorage.removeItem(MEDIA_STORAGE_KEY);
+      localStorage.removeItem(CONSULTATIONS_STORAGE_KEY);
+      localStorage.removeItem(BRANDING_STORAGE_KEY);
+      localStorage.removeItem(EPC_PARTNERS_STORAGE_KEY);
+      localStorage.removeItem(EPC_CONFIG_STORAGE_KEY);
+      localStorage.removeItem(ABOUT_INFO_STORAGE_KEY);
+      localStorage.removeItem(LEADERSHIP_STORAGE_KEY);
+      localStorage.removeItem(ADVISORY_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
 
-    localStorage.removeItem(PROJECTS_STORAGE_KEY);
-    localStorage.removeItem(ARTICLES_STORAGE_KEY);
-    localStorage.removeItem(MEDIA_STORAGE_KEY);
-    localStorage.removeItem(CONSULTATIONS_STORAGE_KEY);
-    localStorage.removeItem(BRANDING_STORAGE_KEY);
-    localStorage.removeItem(EPC_PARTNERS_STORAGE_KEY);
-    localStorage.removeItem(EPC_CONFIG_STORAGE_KEY);
-    localStorage.removeItem(ABOUT_INFO_STORAGE_KEY);
-    localStorage.removeItem(LEADERSHIP_STORAGE_KEY);
-    localStorage.removeItem(ADVISORY_STORAGE_KEY);
+  const toggleProjectHighlight = (id: string) => {
+    setProjects((prev) => {
+      const updated = prev.map((p) => (p.id === id ? { ...p, isHighlight: !p.isHighlight } : p));
+      try {
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not save highlighted project to localStorage:', e);
+      }
+      return updated;
+    });
   };
 
   const exportBackupData = (type: 'all' | 'projects' | 'knowledge' = 'all') => {
@@ -1112,29 +1047,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const importBackupData = async (
+  const importBackupData = (
     payload: any,
     mode: 'merge' | 'replace' = 'merge'
-  ): Promise<{ success: boolean; projectCount: number; articleCount: number; message: string }> => {
+  ): { success: boolean; projectCount: number; articleCount: number; message: string } => {
     if (!payload || typeof payload !== 'object') {
-      return {
-        success: false,
-        projectCount: 0,
-        articleCount: 0,
-        message: 'Invalid JSON backup structure'
-      };
+      return { success: false, projectCount: 0, articleCount: 0, message: 'Invalid JSON backup structure' };
     }
 
     let importedProjects: ProjectCaseStudy[] = [];
     let importedArticles: JournalArticle[] = [];
 
+    // Check if payload is directly an array
     if (Array.isArray(payload)) {
       if (payload.length > 0 && ('code' in payload[0] || 'facilityType' in payload[0])) {
         importedProjects = payload;
-      } else if (
-        payload.length > 0 &&
-        ('categorySlug' in payload[0] || 'subtitle' in payload[0])
-      ) {
+      } else if (payload.length > 0 && ('categorySlug' in payload[0] || 'subtitle' in payload[0])) {
         importedArticles = payload;
       }
     } else {
@@ -1155,18 +1083,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    // Local optimistic update
     if (importedProjects.length > 0) {
       if (mode === 'replace') {
         setProjects(importedProjects);
-        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(importedProjects));
+        try {
+          localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(importedProjects));
+        } catch (e) {
+          console.warn('localStorage save failed:', e);
+        }
       } else {
         setProjects((prev) => {
           const map = new Map<string, ProjectCaseStudy>();
           prev.forEach((p) => map.set(p.id, p));
           importedProjects.forEach((p) => map.set(p.id, { ...map.get(p.id), ...p }));
           const merged = Array.from(map.values());
-          localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(merged));
+          try {
+            localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(merged));
+          } catch (e) {
+            console.warn('localStorage save failed:', e);
+          }
           return merged;
         });
       }
@@ -1175,14 +1110,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (importedArticles.length > 0) {
       if (mode === 'replace') {
         setArticles(importedArticles);
-        localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(importedArticles));
+        try {
+          localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(importedArticles));
+        } catch (e) {
+          console.warn('localStorage save failed:', e);
+        }
       } else {
         setArticles((prev) => {
           const map = new Map<string, JournalArticle>();
           prev.forEach((a) => map.set(a.id, a));
           importedArticles.forEach((a) => map.set(a.id, { ...map.get(a.id), ...a }));
           const merged = Array.from(map.values());
-          localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(merged));
+          try {
+            localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(merged));
+          } catch (e) {
+            console.warn('localStorage save failed:', e);
+          }
           return merged;
         });
       }
@@ -1192,9 +1135,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       success: true,
       projectCount: importedProjects.length,
       articleCount: importedArticles.length,
-      message: `Successfully ${
-        mode === 'replace' ? 'restored' : 'merged'
-      } ${importedProjects.length} project dossiers and ${importedArticles.length} knowledge articles into local storage.`
+      message: `Successfully ${mode === 'replace' ? 'restored' : 'merged'} ${importedProjects.length} project dossiers and ${importedArticles.length} knowledge articles into active system.`
     };
   };
 
@@ -1206,9 +1147,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         mediaItems,
         consultationRequests,
         branding,
-        isServerSyncing,
-        lastServerSyncTime,
-        refreshServerData,
         updateBranding,
         resetBranding,
         updateProject,

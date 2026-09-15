@@ -103,15 +103,6 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
               </div>
             </div>
             <div className="mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-3 w-full">
-              <a
-                href={`mailto:engineering@hoki-fiber.com?subject=${encodeURIComponent(`[HOKI Technical Consultation] ${formData.projectType} - ${formData.firm || formData.name}`)}&body=${encodeURIComponent(
-                  `Technical Inquiry Details:\nName: ${formData.name}\nFirm: ${formData.firm}\nEmail: ${formData.email}\nPhone: ${formData.phone}\nProject Application: ${formData.projectType}\nEstimated Slab Area: ${formData.slabArea}\nTarget Pour Date: ${formData.targetDate}\n\nProject Notes / Loading Specs:\n${formData.notes}`
-                )}`}
-                className="w-full sm:w-auto px-6 py-3 rounded-full bg-[#006e21] text-white text-xs font-bold uppercase tracking-wider shadow-bubble-sm hover:bg-[#005a1b] cursor-pointer transition-all min-h-[44px] flex items-center justify-center gap-2"
-              >
-                <Send className="w-3.5 h-3.5" />
-                Notify Engineering Desk via Email
-              </a>
               <button
                 onClick={() => {
                   setSubmitted(false);
@@ -135,7 +126,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
                   setSubmitted(false);
                   onClose();
                 }}
-                className="w-full sm:w-auto px-6 py-3 rounded-full bg-[#00356a] text-white text-xs font-bold uppercase tracking-wider shadow-bubble-sm hover:bg-[#002244] cursor-pointer transition-all min-h-[44px]"
+                className="w-full sm:w-auto px-8 py-3 rounded-full bg-[#00356a] text-white text-xs font-bold uppercase tracking-wider shadow-bubble-sm hover:bg-[#002244] cursor-pointer transition-all min-h-[44px]"
               >
                 Close Window
               </button>
