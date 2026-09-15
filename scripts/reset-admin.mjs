@@ -1,4 +1,31 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+dotenv.config({ path: path.join(appRoot, '.env'), quiet: true });
+// Plesk's task runner may not inherit the web application's custom variables.
+// Keep this optional recovery file OUTSIDE httpdocs and remove it after use.
+const recoveryFile = path.resolve(appRoot, '..', 'private', 'hoki-admin-reset.env');
+if (fs.existsSync(recoveryFile)) {
+  const recovery = dotenv.parse(fs.readFileSync(recoveryFile));
+  for (const key of ['RESET_ADMIN_USERNAME', 'RESET_ADMIN_PASSWORD', 'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME']) {
+    if (recovery[key] !== undefined) process.env[key] = recovery[key];
+  }
+}
+if (process.argv.includes('--check-config')) {
+  const password = process.env.RESET_ADMIN_PASSWORD || '';
+  console.log(JSON.stringify({
+    recoveryFileFound: fs.existsSync(recoveryFile),
+    usernamePresent: Boolean(process.env.RESET_ADMIN_USERNAME?.trim()),
+    passwordValidLength: password.length >= 12 && Buffer.byteLength(password, 'utf8') <= 72,
+    databaseUserPresent: Boolean(process.env.DB_USER),
+    databaseNamePresent: Boolean(process.env.DB_NAME)
+  }));
+  process.exit(0);
+}
+
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
 
@@ -45,7 +72,7 @@ try {
     }
   }
   await connection.commit();
-  console.log('Admin account reset successfully. Remove RESET_ADMIN_PASSWORD and RESET_ADMIN_USERNAME from the hosting environment, then sign in with the credentials you selected.');
+  console.log('Admin account reset successfully. Delete private/hoki-admin-reset.env if used and remove RESET_ADMIN_PASSWORD and RESET_ADMIN_USERNAME from the hosting environment, then sign in with the credentials you selected.');
 } catch (error) {
   if (connection) await connection.rollback().catch(() => {});
   // Do not print SQL, connection options or password values to hosting logs.
