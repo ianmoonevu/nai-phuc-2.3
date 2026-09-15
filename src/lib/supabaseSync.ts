@@ -1,3 +1,4 @@
+import { writeDocument } from './documentStore';
 import { getSupabase } from './supabase';
 import {
   SiteBranding,
@@ -12,8 +13,8 @@ import {
 
 /**
  * Universal document store upsert helper.
- * Attempts to upsert the rich document payload (both structured columns + JSON data column).
- * If structured columns fail due to schema mismatch, fallbacks gracefully to { id, data, updated_at }.
+ * Keeps the complete JSON document while adapting optional columns and known legacy requirements.
+ * Permission and validation failures remain failures.
  */
 async function upsertDocument<T extends Record<string, any>>(
   tableName: string,
@@ -32,21 +33,7 @@ async function upsertDocument<T extends Record<string, any>>(
   };
 
   try {
-    const { error } = await supabase.from(tableName).upsert(docPayload);
-    if (!error) return true;
-
-    console.warn(`Primary upsert to "${tableName}" failed (${error.message}). Attempting flexible document fallback...`);
-    // Fallback to pure document store format
-    const fallbackPayload = {
-      id: docPayload.id,
-      data: itemData,
-      updated_at: new Date().toISOString()
-    };
-    const { error: fallbackError } = await supabase.from(tableName).upsert(fallbackPayload);
-    if (fallbackError) {
-      console.error(`Fallback upsert to "${tableName}" error:`, fallbackError.message);
-      return false;
-    }
+    await writeDocument(supabase, tableName, docPayload, itemData);
     return true;
   } catch (err) {
     console.error(`Exception during upsert to "${tableName}":`, err);
