@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FIBER_PRODUCTS } from '../data/mockData';
+import { useContent } from '../context/ContentContext';
 import { FiberProduct } from '../types';
 import {
   FileText,
@@ -32,8 +32,9 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   onOpenDossier,
   onOpenConsultation,
 }) => {
+  const { products: FIBER_PRODUCTS } = useContent();
   // Active Series Tab
-  const [activeTab, setActiveTab] = useState<string>('hf-8060');
+  const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(window.location.search).get('product') || 'hf-8060');
 
   // Interactive Product Selector State
   const [selectedApplication, setSelectedApplication] = useState('heavy-duty');

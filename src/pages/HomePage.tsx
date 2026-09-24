@@ -1,8 +1,9 @@
+import { useContent } from '../context/ContentContext';
 import React, { useState } from 'react';
 import { PageRoute } from '../types';
 import { useData } from '../context/DataContext';
 import { parseYouTubeInput } from '../utils/youtube';
-import { STRATEGIC_PARTNERS, FIBER_PRODUCTS } from '../data/mockData';
+import { STRATEGIC_PARTNERS } from '../data/mockData';
 import { slugify, getProjectDetailPath } from '../utils/router';
 import {
   ArrowRight,
@@ -30,13 +31,14 @@ import {
 } from 'lucide-react';
 
 interface HomePageProps {
-  onNavigate: (route: PageRoute) => void;
+  onNavigate: (route: PageRoute, query?: string) => void;
   onOpenConsultation: () => void;
   onSelectProject?: (projectId: string) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConsultation, onSelectProject }) => {
   const { projects, branding, epcPartners, epcSectionConfig } = useData();
+  const { products: FIBER_PRODUCTS } = useContent();
 
   const heroImage = branding?.heroImageUrl || '/images/hoki-industrial-floor-hero.svg';
   const heroOverlayOpacity = branding?.heroOverlayOpacity !== undefined ? branding.heroOverlayOpacity : 20;
@@ -493,7 +495,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConsultati
               <div className="mt-6 pt-4 border-t border-[#f0f3f5] flex items-center justify-between">
                 <button
                   onClick={() => {
-                    onNavigate('products');
+                    onNavigate('products', `product=${encodeURIComponent(prod.id)}`);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="text-xs font-bold text-[#00356a] hover:text-[#006e21] flex items-center gap-1 cursor-pointer"

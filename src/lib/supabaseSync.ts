@@ -86,7 +86,7 @@ export function subscribeToBrandingRealtime(onUpdate: (branding: SiteBranding) =
       'postgres_changes',
       { event: '*', schema: 'public', table: 'site_branding' },
       (payload) => {
-        if (payload.new && typeof payload.new === 'object') {
+        if (payload.new && typeof payload.new === 'object' && (payload.new as any).id === 'default') {
           onUpdate(unpackBranding(payload.new));
         }
       }

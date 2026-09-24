@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { useData } from '../context/DataContext';
+import { useContent as useData } from '../context/ContentContext';
+import { AdminProductsSection } from '../components/AdminProductsSection';
 import { PageRoute, ProjectCaseStudy, JournalArticle, MediaItem, ProjectGalleryItem } from '../types';
 import { AdminDashboard } from '../components/AdminDashboard';
 import { QuickPhotoManagerModal } from '../components/QuickPhotoManagerModal';
@@ -92,7 +93,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     logoutAdmin
   } = useData();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'knowledge' | 'projects' | 'epc' | 'about' | 'media' | 'branding' | 'video' | 'hotline' | 'system'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'products' | 'dashboard' | 'knowledge' | 'projects' | 'epc' | 'about' | 'media' | 'branding' | 'video' | 'hotline' | 'system'>('dashboard');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -726,6 +727,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             <span>Project Dossiers ({projects.length})</span>
           </button>
 
+          <button id="admin-tab-products" onClick={() => setActiveTab('products')} className={`px-5 py-3 rounded-xl text-xs font-bold uppercase ${activeTab === 'products' ? 'bg-[#00356a] text-white' : ''}`}>Products</button>
           <button
             id="admin-tab-epc"
             onClick={() => setActiveTab('epc')}
@@ -816,6 +818,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
           </button>
         </div>
 
+        {activeTab === 'products' && <AdminProductsSection />}
         {/* TAB 0: DASHBOARD OVERVIEW */}
         {activeTab === 'dashboard' && (
           <AdminDashboard
@@ -1433,7 +1436,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     Backup & Re-upload Restore Management
                   </h3>
                   <p className="text-xs text-[#00356a]/70 mt-1 max-w-2xl">
-                    Export projects and knowledge monographs to JSON files for off-site backup, or re-upload previous backup archives to restore or merge project data anytime.
+                    Export all admin content, including Products, branding, hotline, video, About Us, teams, partners, media and consultations. Restore by merging without removing content absent from the backup.
                   </p>
                 </div>
 
@@ -1468,10 +1471,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   <div>
                     <div className="flex items-center gap-2 text-xs font-bold text-[#00356a]">
                       <Database className="w-4 h-4 text-[#00356a]" />
-                      <span>Full Backup (All Data)</span>
+                      <span>Full Backup (All Content)</span>
                     </div>
                     <p className="text-[11px] text-[#00356a]/65 mt-1">
-                      Includes all {projects.length} project dossiers and {articles.length} knowledge articles.
+                      Includes Projects, Knowledge, Products, hotline, branding, video, About Us, teams, partners, media and consultations.
                     </p>
                   </div>
                   <button
@@ -2835,3 +2838,4 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     </div>
   );
 };
+
