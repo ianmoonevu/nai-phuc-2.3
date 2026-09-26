@@ -16,10 +16,20 @@ Version 4 exports the current admin state: projects, articles, products, media, 
 
 Embedded images remain embedded; external and site-relative image URLs remain references. This is a content JSON backup, not an archive of the Storage bucket or hosting filesystem. Keep those image files separately. Consultation data can contain personal information; keep backups private.
 
-Restore validates the file, downloads a before-restore recovery copy, then merges by ID. Matching items use the imported values; existing items and sections absent from an older backup are retained. Version 3 project/knowledge files remain supported. Restore does not delete items. Existing leadership/advisory local-storage behavior is retained; these lists are included in backup and restored in the current browser. Sections already stored in Supabase, including Products, are saved there on restore. A multi-section restore is not a database transaction: if a write fails, the UI reports failure and earlier sections may already be saved; keep the recovery copy and retry after fixing connectivity/permissions.
+Restore validates the file, downloads a before-restore recovery copy, then merges by ID. Matching items use the imported values; existing items and sections absent from an older backup are retained. Version 3 project/knowledge files remain supported. Restore does not delete items. About Us, leadership and advisory members are restored together to the shared cloud document, so the restored content is visible in other browsers. A multi-section restore is not a database transaction: if a write fails, the UI reports failure and earlier sections may already be saved; keep the recovery copy and retry after fixing connectivity/permissions.
+
+## About Us
+
+Admin → About Us Page (also accessible from Branding → About Us Pictures) now edits the complete page: story, mission, banner images, leaders and portraits, Foundation, manufacturing, quality process, partner regions, advisors and corporate timeline. Click **Lưu toàn bộ About Us** to publish all sections together. Uploading/selecting a portrait only changes the draft until this save succeeds.
+
+The existing `about_page_info` row `default` stores the page fields plus `leadershipHeads` and `advisoryMembers` in its `data` JSON column. No additional table or hosting setting is required. A save reads back the document to verify it. The `updated_at` revision prevents a stale editor from overwriting a newer save. Connection errors keep the draft available; a separate draft-backup button can export pending edits. Ordinary System Backup exports saved content.
+
+For the first save after upgrading, open the same browser/profile that holds the previous personnel edits. If the cloud document has no personnel lists yet, those local edits are retained for review and publication. After publication, the cloud arrays are authoritative, including intentional empty lists. Older editor aliases are migrated when read, without deleting unknown fields. There are no automatic startup writes or resets. Other browsers refresh on load, focus and every 30 seconds.
+
+The deployment cannot recover browser-only edits from a different device automatically. Use an existing JSON backup or the original browser. Existing hero/factory images and legacy branding portrait overrides are carried forward; image editing is consolidated into the About editor.
 
 ## Validation
 
-`node --test --test-isolation=none tests/contentBackup.test.mjs tests/documentStore.test.mjs tests/mergeProjects.test.mjs`
+`node --test --test-isolation=none tests/aboutContent.test.mjs tests/contentBackup.test.mjs tests/documentStore.test.mjs tests/mergeProjects.test.mjs`
 
 Also run TypeScript and the production build. Browser checks cover product editing, a separate browser context reading the edit, Home/Products consistency, denied writes, full JSON export, legacy merge and full restore. Use mocked Supabase requests for mutation tests; never use customer content as test fixtures.

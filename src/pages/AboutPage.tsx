@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LEADERSHIP_HEADS, ADVISORY_BOARD, GLOBAL_OFFICES, EVOLUTION_TIMELINE } from '../data/mockData';
-import { useData } from '../context/DataContext';
+import { useContent as useData } from '../context/ContentContext';
 import {
   Factory,
   Cpu,
@@ -30,31 +30,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
   const { branding, aboutInfo, leadershipHeads, advisoryMembers } = useData();
   const [activePartnerRegion, setActivePartnerRegion] = useState<'apac' | 'europe' | 'americas' | 'mena'>('apac');
 
-  const aboutHeroImage = branding?.aboutHeroImageUrl || '/images/hoki-greener-tomorrow-hero.svg';
-  const aboutFactoryImage = branding?.aboutFactoryImageUrl || '/images/factory-alpha-hub.svg';
+  const aboutHeroImage = aboutInfo.heroImageUrl ?? branding?.aboutHeroImageUrl ?? '/images/hoki-greener-tomorrow-hero.svg';
+  const aboutFactoryImage = aboutInfo.factoryImageUrl ?? branding?.aboutFactoryImageUrl ?? '/images/factory-alpha-hub.svg';
 
-  const partnerNetwork = {
-    apac: {
-      regionName: 'Asia-Pacific Distribution & Engineering Partners',
-      hubs: ['Vietnam (HQ & Alpha Hub)', 'Singapore', 'Japan', 'South Korea', 'Australia', 'Indonesia'],
-      summary: 'Central manufacturing base at Alpha Hub delivering continuous daily dispatch to major EPC jointless slab projects across SE Asia and Pacific rim ports.'
-    },
-    europe: {
-      regionName: 'Europe Strategic Alliances & Supply Hubs',
-      hubs: ['Frankfurt (Germany)', 'Rotterdam (Netherlands)', 'London (UK)', 'Milan (Italy)'],
-      summary: 'Dedicated CE System 1 and DAfStb compliance desk supporting precast tunnel segmental linings, robotic logistics centers, and low-carbon infrastructure.'
-    },
-    americas: {
-      regionName: 'Americas Channel Partners & ASTM Centers',
-      hubs: ['Chicago, IL (USA)', 'Houston, TX (USA)', 'Monterrey (Mexico)', 'São Paulo (Brazil)'],
-      summary: 'Regional inventory stocking centers providing rapid transit of ASTM A820 Type I cold-drawn fibers for industrial distribution facilities and intermodal ports.'
-    },
-    mena: {
-      regionName: 'Middle East & Africa Infrastructure Desk',
-      hubs: ['Dubai Logistics City (UAE)', 'Riyadh (Saudi Arabia)', 'Doha (Qatar)'],
-      summary: 'Heavy infrastructure support specializing in extreme temperature curing, heavy port aprons, airport taxiways, and subterranean mining applications.'
-    }
-  };
+  const partnerNetwork = aboutInfo.partnerNetwork;
 
   return (
     <div className="w-full flex flex-col items-center">
@@ -63,28 +42,28 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
         <div className="bg-[#f4f6f8] rounded-[2rem] sm:rounded-[2.5rem] md:rounded-[3rem] p-5 sm:p-8 md:p-14 shadow-bubble border border-[#e5e9ee] text-center max-w-5xl mx-auto relative overflow-hidden">
           <div className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-full bg-white border border-[#e2e6eb] shadow-bubble-sm text-[#006e21] text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-4">
             <Leaf className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#006e21]" />
-            <span>{aboutInfo?.heroBadge || 'ORIGIN & COMPANY PROFILE'}</span>
+            <span>{aboutInfo.heroBadge}</span>
           </div>
 
           <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#00356a] leading-tight tracking-tight">
-            {aboutInfo?.title || 'About HOKI Structural Fiber'}
+            {aboutInfo.title}
           </h1>
 
           <p className="mt-3 sm:mt-4 text-base sm:text-xl font-bold text-[#006e21]">
-            {aboutInfo?.subtitle || 'Strength, Reliability, Solutions — Built to Perform.'}
+            {aboutInfo.subtitle}
           </p>
 
           <p className="mt-3 sm:mt-4 text-xs sm:text-base text-[#00356a]/80 leading-relaxed max-w-3xl mx-auto font-normal whitespace-pre-line">
-            {aboutInfo?.description || 'Founded with a singular civil engineering thesis, HOKI manufactures high-performance cold-drawn hooked and collated 3D steel fibers designed to displace traditional welded wire mesh and rebar cages. We enable structural engineers to accelerate construction schedules by 40%, eliminate slab curling and joint spalling, and achieve auditable carbon abatement.'}
+            {aboutInfo.description}
           </p>
 
           {/* Mission Quote Banner */}
           <div className="mt-6 sm:mt-8 p-4 sm:p-6 rounded-2xl bg-white border border-[#e2e6eb] shadow-bubble-sm max-w-2xl mx-auto">
             <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#006e21] block mb-1">
-              {aboutInfo?.missionTitle || 'Mission for Sustainable Concrete Flooring'}
+              {aboutInfo.missionTitle}
             </span>
             <p className="text-xs sm:text-base font-semibold text-[#00356a] italic">
-              {aboutInfo?.missionQuote || '"Sustainability isn\'t a trend, it\'s how we build a better tomorrow."'}
+              {aboutInfo.missionQuote}
             </p>
           </div>
 
@@ -99,10 +78,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
               <div className="absolute inset-0 bg-gradient-to-t from-[#00356a]/90 via-[#00356a]/30 to-transparent flex items-end p-4 sm:p-7 text-left">
                 <div>
                   <span className="text-[9px] sm:text-xs uppercase font-bold tracking-widest text-[#006e21] bg-white/95 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full inline-block mb-1 backdrop-blur-sm">
-                    {aboutInfo?.heroImageBadge || 'Alpha Hub Continuous Global Operations'}
+                    {aboutInfo.heroImageBadge}
                   </span>
                   <p className="text-white text-xs sm:text-base font-bold line-clamp-2">
-                    {aboutInfo?.heroImageCaption || 'Pioneering High-Tensile Steel Fiber Technology for Net-Zero Infrastructure'}
+                    {aboutInfo.heroImageCaption}
                   </p>
                 </div>
               </div>
@@ -114,20 +93,18 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
       {/* 2. Leadership & Department Heads per Mindnote */}
       <section className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">
-            ORGANIZATIONAL STRUCTURE
-          </span>
+          <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">{aboutInfo.pageText["section2Text1"]}</span>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">
-            {aboutInfo?.leadershipTitle || 'Leadership & Department Heads'}
+            {aboutInfo.leadershipTitle}
           </h2>
           <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">
-            {aboutInfo?.leadershipSubtitle || 'Guided by veteran structural engineers, metallurgical innovators, and global supply chain directors.'}
+            {aboutInfo.leadershipSubtitle}
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(leadershipHeads && leadershipHeads.length > 0 ? leadershipHeads : LEADERSHIP_HEADS).map((head, idx) => {
-            const avatarUrl = head.avatar || branding?.aboutLeadershipAvatars?.[head.name] || '/images/team/placeholder.svg';
+          {leadershipHeads.map((head, idx) => {
+            const avatarUrl = head.avatar || '/images/team/placeholder.svg';
             return (
               <div
                 key={head.id || idx}
@@ -142,7 +119,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           // fallback image
-                          (e.target as HTMLImageElement).src = '/images/team/placeholder.svg';
+                          const img = e.currentTarget; if (!img.src.endsWith('/images/team/placeholder.svg')) img.src = '/images/team/placeholder.svg';
                         }}
                       />
                     </div>
@@ -161,9 +138,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
 
                 {head.credentials && (
                   <div className="p-3 rounded-xl bg-[#f4f6f8] border border-[#e2e6eb] mb-3 text-xs">
-                    <span className="font-semibold text-[#00356a] block text-[11px] mb-0.5">
-                      Credentials:
-                    </span>
+                    <span className="font-semibold text-[#00356a] block text-[11px] mb-0.5">{aboutInfo.pageText["section2Text2"]}</span>
                     <span className="text-[#00356a]/70">{head.credentials}</span>
                   </div>
                 )}
@@ -174,7 +149,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
               </div>
 
               <div className="mt-4 pt-3 border-t border-[#f0f3f5] flex items-center justify-between text-xs text-[#006e21] font-semibold">
-                <span>Verified Direct Leadership</span>
+                <span>{aboutInfo.pageText["section2Text3"]}</span>
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
@@ -187,15 +162,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
       <section className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
         <div className="bg-[#f4f6f8] rounded-[2.5rem] p-8 sm:p-12 shadow-bubble border border-[#e5e9ee]">
           <div className="text-center max-w-3xl mx-auto mb-10">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">
-              FOUNDATIONAL CAPABILITIES
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">
-              HOKI Technology & Core Delivery
-            </h2>
-            <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">
-              Four integrated pillars that ensure precision from initial specification through jobsite laser-screed placement.
-            </p>
+            <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">{aboutInfo.pageText["section3Text1"]}</span>
+            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">{aboutInfo.pageText["section3Text2"]}</h2>
+            <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">{aboutInfo.pageText["section3Text3"]}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -204,16 +173,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
                 <span className="text-xs font-extrabold text-[#006e21] bg-[#006e21]/10 px-2.5 py-1 rounded-full">
                   01
                 </span>
-                <h3 className="text-base font-bold text-[#00356a] mt-3">
-                  High-Performance Product Range
-                </h3>
-                <p className="text-xs text-[#00356a]/75 mt-2 leading-relaxed">
-                  HF-8060, HF-6535, and HF-10020 series engineered for cold-drawn tensile strengths up to 2,200 MPa with proprietary ITZ micro-roughness.
-                </p>
+                <h3 className="text-base font-bold text-[#00356a] mt-3">{aboutInfo.pageText["section3Text4"]}</h3>
+                <p className="text-xs text-[#00356a]/75 mt-2 leading-relaxed">{aboutInfo.pageText["section3Text5"]}</p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#f0f3f5] text-[11px] font-semibold text-[#00356a]/60">
-                ASTM A820 & EN 14889-1
-              </div>
+              <div className="mt-4 pt-3 border-t border-[#f0f3f5] text-[11px] font-semibold text-[#00356a]/60">{aboutInfo.pageText["section3Text6"]}</div>
             </div>
 
             <div className="bg-white rounded-3xl p-6 shadow-bubble-sm border border-[#e2e6eb] flex flex-col justify-between">
@@ -221,16 +184,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
                 <span className="text-xs font-extrabold text-[#006e21] bg-[#006e21]/10 px-2.5 py-1 rounded-full">
                   02
                 </span>
-                <h3 className="text-base font-bold text-[#00356a] mt-3">
-                  Technical Guidance & Dosage
-                </h3>
-                <p className="text-xs text-[#00356a]/75 mt-2 leading-relaxed">
-                  TR34 4th Edition and ACI 544 plastic yield-line calculations, rebar displacement modeling, and point-load optimization.
-                </p>
+                <h3 className="text-base font-bold text-[#00356a] mt-3">{aboutInfo.pageText["section3Text7"]}</h3>
+                <p className="text-xs text-[#00356a]/75 mt-2 leading-relaxed">{aboutInfo.pageText["section3Text8"]}</p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#f0f3f5] text-[11px] font-semibold text-[#00356a]/60">
-                Peer-Reviewed Dosing
-              </div>
+              <div className="mt-4 pt-3 border-t border-[#f0f3f5] text-[11px] font-semibold text-[#00356a]/60">{aboutInfo.pageText["section3Text9"]}</div>
             </div>
 
             <div className="bg-white rounded-3xl p-6 shadow-bubble-sm border border-[#e2e6eb] flex flex-col justify-between">
@@ -238,16 +195,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
                 <span className="text-xs font-extrabold text-[#006e21] bg-[#006e21]/10 px-2.5 py-1 rounded-full">
                   03
                 </span>
-                <h3 className="text-base font-bold text-[#00356a] mt-3">
-                  Reliable Supply & Logistics
-                </h3>
-                <p className="text-xs text-[#00356a]/75 mt-2 leading-relaxed">
-                  50,000 MT/year production capacity backed by automated warehouse inventory and fast containerized export shipping.
-                </p>
+                <h3 className="text-base font-bold text-[#00356a] mt-3">{aboutInfo.pageText["section3Text10"]}</h3>
+                <p className="text-xs text-[#00356a]/75 mt-2 leading-relaxed">{aboutInfo.pageText["section3Text11"]}</p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#f0f3f5] text-[11px] font-semibold text-[#00356a]/60">
-                Global Network Ready
-              </div>
+              <div className="mt-4 pt-3 border-t border-[#f0f3f5] text-[11px] font-semibold text-[#00356a]/60">{aboutInfo.pageText["section3Text12"]}</div>
             </div>
 
             <div className="bg-white rounded-3xl p-6 shadow-bubble-sm border border-[#e2e6eb] flex flex-col justify-between">
@@ -255,16 +206,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
                 <span className="text-xs font-extrabold text-[#006e21] bg-[#006e21]/10 px-2.5 py-1 rounded-full">
                   04
                 </span>
-                <h3 className="text-base font-bold text-[#00356a] mt-3">
-                  Project Support to Execution
-                </h3>
-                <p className="text-xs text-[#00356a]/75 mt-2 leading-relaxed">
-                  Direct jobsite presence during trial batches, ready-mix truck dosing supervision, and ASTM C1609 beam test verification.
-                </p>
+                <h3 className="text-base font-bold text-[#00356a] mt-3">{aboutInfo.pageText["section3Text13"]}</h3>
+                <p className="text-xs text-[#00356a]/75 mt-2 leading-relaxed">{aboutInfo.pageText["section3Text14"]}</p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#f0f3f5] text-[11px] font-semibold text-[#00356a]/60">
-                End-to-End Assurance
-              </div>
+              <div className="mt-4 pt-3 border-t border-[#f0f3f5] text-[11px] font-semibold text-[#00356a]/60">{aboutInfo.pageText["section3Text15"]}</div>
             </div>
           </div>
         </div>
@@ -275,13 +220,13 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
         <div className="bg-white rounded-[2.5rem] p-8 sm:p-12 shadow-bubble border border-[#e5e9ee]">
           <div className="text-center max-w-3xl mx-auto mb-10">
             <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">
-              {aboutInfo?.factoryBadge || 'MANUFACTURING EXCELLENCE'}
+              {aboutInfo.factoryBadge}
             </span>
             <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">
-              {aboutInfo?.factoryTitle || 'Manufacturing Capability'}
+              {aboutInfo.factoryTitle}
             </h2>
             <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">
-              {aboutInfo?.factorySubtitle || 'State-of-the-art robotic cold-drawing and collating technology at the Alpha Hub facility.'}
+              {aboutInfo.factorySubtitle}
             </p>
           </div>
 
@@ -289,42 +234,26 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
             <div className="space-y-4">
               <div className="bg-[#f4f6f8] rounded-2xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
                 <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider flex items-center gap-2">
-                  <Cpu className="w-4 h-4 text-[#006e21]" />
-                  Advanced Fiber Forming & Hooked-End Anchorage
-                </h4>
-                <p className="text-xs text-[#00356a]/75 mt-1 leading-relaxed">
-                  High-speed forming tools shape precision bi-directional mechanical hooks that engage concrete aggregate particles at the microscopic scale to prevent pull-out failure.
-                </p>
+                  <Cpu className="w-4 h-4 text-[#006e21]" />{aboutInfo.pageText["section4Text1"]}</h4>
+                <p className="text-xs text-[#00356a]/75 mt-1 leading-relaxed">{aboutInfo.pageText["section4Text2"]}</p>
               </div>
 
               <div className="bg-[#f4f6f8] rounded-2xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
                 <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#006e21]" />
-                  Controlled Wire Material Selection
-                </h4>
-                <p className="text-xs text-[#00356a]/75 mt-1 leading-relaxed">
-                  Only certified prime low-carbon and high-carbon wire rods with strictly controlled metallurgy are drawn, ensuring consistent tensile ductility and bending performance.
-                </p>
+                  <ShieldCheck className="w-4 h-4 text-[#006e21]" />{aboutInfo.pageText["section4Text3"]}</h4>
+                <p className="text-xs text-[#00356a]/75 mt-1 leading-relaxed">{aboutInfo.pageText["section4Text4"]}</p>
               </div>
 
               <div className="bg-[#f4f6f8] rounded-2xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
                 <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider flex items-center gap-2">
-                  <Factory className="w-4 h-4 text-[#006e21]" />
-                  Stable Production Capacity & Constant Output
-                </h4>
-                <p className="text-xs text-[#00356a]/75 mt-1 leading-relaxed">
-                  Multiple parallel high-speed lines ensure uninterrupted fulfillment for mega-projects exceeding 200,000 m² without supply delays.
-                </p>
+                  <Factory className="w-4 h-4 text-[#006e21]" />{aboutInfo.pageText["section4Text5"]}</h4>
+                <p className="text-xs text-[#00356a]/75 mt-1 leading-relaxed">{aboutInfo.pageText["section4Text6"]}</p>
               </div>
 
               <div className="bg-[#f4f6f8] rounded-2xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
                 <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider flex items-center gap-2">
-                  <PackageCheck className="w-4 h-4 text-[#006e21]" />
-                  Export-Ready Packaging & Supply Coordination
-                </h4>
-                <p className="text-xs text-[#00356a]/75 mt-1 leading-relaxed">
-                  Collated bundles packed in 20 kg moisture-resistant poly-lined paper sacks or 1,000 kg bulk big-bags with moisture desiccant, certified for containerized ocean transport.
-                </p>
+                  <PackageCheck className="w-4 h-4 text-[#006e21]" />{aboutInfo.pageText["section4Text7"]}</h4>
+                <p className="text-xs text-[#00356a]/75 mt-1 leading-relaxed">{aboutInfo.pageText["section4Text8"]}</p>
               </div>
             </div>
 
@@ -336,12 +265,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
                   alt="Alpha Hub manufacturing lines and automated inspection"
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-3 left-3 bg-[#00356a]/90 text-white text-[10px] font-mono px-3 py-1 rounded-full backdrop-blur-md">
-                  ALPHA HUB • HIGH-SPEED WIRE DRAWING LINE
-                </div>
+                <div className="absolute top-3 left-3 bg-[#00356a]/90 text-white text-[10px] font-mono px-3 py-1 rounded-full backdrop-blur-md">{aboutInfo.pageText["section4Text9"]}</div>
               </div>
               <p className="text-xs text-[#00356a]/75 italic text-center">
-                {aboutInfo?.factoryCaption || 'Real-time optical dimensional verification and continuous cold-drawing monitoring at Alpha Hub.'}
+                {aboutInfo.factoryCaption}
               </p>
             </div>
           </div>
@@ -352,104 +279,56 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
       <section className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
         <div className="bg-[#f4f6f8] rounded-[2.5rem] p-8 sm:p-12 shadow-bubble border border-[#e5e9ee]">
           <div className="text-center max-w-3xl mx-auto mb-10">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">
-              QUALITY ASSURANCE PROTOCOL
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">
-              Production Process & Quality Control
-            </h2>
-            <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">
-              Rigorous 4-stage manufacturing cycle governed by 3 core metallurgical quality pillars.
-            </p>
+            <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">{aboutInfo.pageText["section5Text1"]}</span>
+            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">{aboutInfo.pageText["section5Text2"]}</h2>
+            <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">{aboutInfo.pageText["section5Text3"]}</p>
           </div>
 
           {/* 4-Stage Production Flow */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
             <div className="bg-white rounded-2xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
-              <span className="text-xs font-extrabold text-[#00356a] bg-[#f4f6f8] px-2.5 py-1 rounded-full">
-                STAGE 1
-              </span>
-              <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider mt-2">
-                Wire Preparation
-              </h4>
-              <p className="text-[11px] text-[#00356a]/70 mt-1">
-                Chemical descaling, inline ultrasonic cleansing, and multi-pass cold drawing to target diameter (0.55mm – 0.75mm).
-              </p>
+              <span className="text-xs font-extrabold text-[#00356a] bg-[#f4f6f8] px-2.5 py-1 rounded-full">{aboutInfo.pageText["section5Text4"]}</span>
+              <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider mt-2">{aboutInfo.pageText["section5Text5"]}</h4>
+              <p className="text-[11px] text-[#00356a]/70 mt-1">{aboutInfo.pageText["section5Text6"]}</p>
             </div>
 
             <div className="bg-white rounded-2xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
-              <span className="text-xs font-extrabold text-[#00356a] bg-[#f4f6f8] px-2.5 py-1 rounded-full">
-                STAGE 2
-              </span>
-              <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider mt-2">
-                Fiber Forming
-              </h4>
-              <p className="text-[11px] text-[#00356a]/70 mt-1">
-                Automated rotary crimping and high-velocity hooked-end cutting with water-soluble collation strip application.
-              </p>
+              <span className="text-xs font-extrabold text-[#00356a] bg-[#f4f6f8] px-2.5 py-1 rounded-full">{aboutInfo.pageText["section5Text7"]}</span>
+              <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider mt-2">{aboutInfo.pageText["section5Text8"]}</h4>
+              <p className="text-[11px] text-[#00356a]/70 mt-1">{aboutInfo.pageText["section5Text9"]}</p>
             </div>
 
             <div className="bg-white rounded-2xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
-              <span className="text-xs font-extrabold text-[#00356a] bg-[#f4f6f8] px-2.5 py-1 rounded-full">
-                STAGE 3
-              </span>
-              <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider mt-2">
-                Dimension Check
-              </h4>
-              <p className="text-[11px] text-[#00356a]/70 mt-1">
-                Automated Optical Inspection (AOI) with 0.01mm tolerance verifying length, diameter, and hook angle for every batch.
-              </p>
+              <span className="text-xs font-extrabold text-[#00356a] bg-[#f4f6f8] px-2.5 py-1 rounded-full">{aboutInfo.pageText["section5Text10"]}</span>
+              <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider mt-2">{aboutInfo.pageText["section5Text11"]}</h4>
+              <p className="text-[11px] text-[#00356a]/70 mt-1">{aboutInfo.pageText["section5Text12"]}</p>
             </div>
 
             <div className="bg-white rounded-2xl p-5 border border-[#e2e6eb] shadow-bubble-sm">
-              <span className="text-xs font-extrabold text-[#00356a] bg-[#f4f6f8] px-2.5 py-1 rounded-full">
-                STAGE 4
-              </span>
-              <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider mt-2">
-                Packing & Dispatch
-              </h4>
-              <p className="text-[11px] text-[#00356a]/70 mt-1">
-                Automated bagging, barcode batch tracking, robotic palletizing, and stretch-wrapping for global freight dispatch.
-              </p>
+              <span className="text-xs font-extrabold text-[#00356a] bg-[#f4f6f8] px-2.5 py-1 rounded-full">{aboutInfo.pageText["section5Text13"]}</span>
+              <h4 className="text-xs font-bold text-[#00356a] uppercase tracking-wider mt-2">{aboutInfo.pageText["section5Text14"]}</h4>
+              <p className="text-[11px] text-[#00356a]/70 mt-1">{aboutInfo.pageText["section5Text15"]}</p>
             </div>
           </div>
 
           {/* 3 Core Quality Pillars */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-[#e2e6eb]">
             <div className="p-6 rounded-3xl bg-white border border-[#e5e9ee] shadow-bubble-sm">
-              <span className="text-[11px] font-bold text-[#006e21] uppercase tracking-wider block mb-1">
-                Core Pillar 1
-              </span>
-              <h3 className="text-base font-bold text-[#00356a]">
-                Dimensional Consistency
-              </h3>
-              <p className="text-xs text-[#00356a]/70 mt-2 leading-relaxed">
-                Zero tolerance for tangled or oversized fibers. Every fiber conforms strictly to aspect ratio limits (±2%) to guarantee homogeneous ready-mix dispersion without balling.
-              </p>
+              <span className="text-[11px] font-bold text-[#006e21] uppercase tracking-wider block mb-1">{aboutInfo.pageText["section5Text16"]}</span>
+              <h3 className="text-base font-bold text-[#00356a]">{aboutInfo.pageText["section5Text17"]}</h3>
+              <p className="text-xs text-[#00356a]/70 mt-2 leading-relaxed">{aboutInfo.pageText["section5Text18"]}</p>
             </div>
 
             <div className="p-6 rounded-3xl bg-white border border-[#e5e9ee] shadow-bubble-sm">
-              <span className="text-[11px] font-bold text-[#006e21] uppercase tracking-wider block mb-1">
-                Core Pillar 2
-              </span>
-              <h3 className="text-base font-bold text-[#00356a]">
-                Material Performance
-              </h3>
-              <p className="text-xs text-[#00356a]/70 mt-2 leading-relaxed">
-                Continuous tensile testing in accordance with ASTM A820 and EN 14889-1 guarantees minimum yield strengths of 1,200 to 1,500 MPa and 90° bend ductility.
-              </p>
+              <span className="text-[11px] font-bold text-[#006e21] uppercase tracking-wider block mb-1">{aboutInfo.pageText["section5Text19"]}</span>
+              <h3 className="text-base font-bold text-[#00356a]">{aboutInfo.pageText["section5Text20"]}</h3>
+              <p className="text-xs text-[#00356a]/70 mt-2 leading-relaxed">{aboutInfo.pageText["section5Text21"]}</p>
             </div>
 
             <div className="p-6 rounded-3xl bg-white border border-[#e5e9ee] shadow-bubble-sm">
-              <span className="text-[11px] font-bold text-[#006e21] uppercase tracking-wider block mb-1">
-                Core Pillar 3
-              </span>
-              <h3 className="text-base font-bold text-[#00356a]">
-                Batch Reliability
-              </h3>
-              <p className="text-xs text-[#00356a]/70 mt-2 leading-relaxed">
-                Full heat-number and mill test certificate (MTC) traceability from raw steel rod through finished pallet, downloadable instantly via our authorized verification system.
-              </p>
+              <span className="text-[11px] font-bold text-[#006e21] uppercase tracking-wider block mb-1">{aboutInfo.pageText["section5Text22"]}</span>
+              <h3 className="text-base font-bold text-[#00356a]">{aboutInfo.pageText["section5Text23"]}</h3>
+              <p className="text-xs text-[#00356a]/70 mt-2 leading-relaxed">{aboutInfo.pageText["section5Text24"]}</p>
             </div>
           </div>
         </div>
@@ -459,15 +338,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
       <section className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
         <div className="bg-white rounded-[2.5rem] p-8 sm:p-12 shadow-bubble border border-[#e5e9ee]">
           <div className="text-center max-w-3xl mx-auto mb-8">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">
-              WORLDWIDE REACH
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">
-              Global Presence & International Partner Network
-            </h2>
-            <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">
-              Delivering certified structural steel fibers to heavy infrastructure projects across four continents.
-            </p>
+            <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">{aboutInfo.pageText["section6Text1"]}</span>
+            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">{aboutInfo.pageText["section6Text2"]}</h2>
+            <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">{aboutInfo.pageText["section6Text3"]}</p>
           </div>
 
           {/* Region Switcher Pills */}
@@ -509,16 +382,16 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
           <div className="pt-8 border-t border-[#e2e6eb]">
             <div className="text-center mb-6">
               <span className="text-[11px] font-bold text-[#006e21] uppercase tracking-wider block">
-                {aboutInfo?.advisorySubtitle || 'Scientific Governance'}
+                {aboutInfo.advisorySubtitle}
               </span>
               <h3 className="text-xl font-bold text-[#00356a]">
-                {aboutInfo?.advisoryTitle || 'Global Structural Advisory Board'}
+                {aboutInfo.advisoryTitle}
               </h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {(advisoryMembers && advisoryMembers.length > 0 ? advisoryMembers : ADVISORY_BOARD).map((advisor, i) => {
-                const advisorAvatarUrl = advisor.avatar || branding?.aboutAdvisoryAvatars?.[advisor.name] || '/images/team/placeholder.svg';
+              {advisoryMembers.map((advisor, i) => {
+                const advisorAvatarUrl = advisor.avatar || '/images/team/placeholder.svg';
                 return (
                   <div
                     key={advisor.id || i}
@@ -531,7 +404,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
                           alt={advisor.name}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/images/team/placeholder.svg';
+                            const img = e.currentTarget; if (!img.src.endsWith('/images/team/placeholder.svg')) img.src = '/images/team/placeholder.svg';
                           }}
                         />
                       </div>
@@ -564,19 +437,13 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
       <section id="evolution-timeline" className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-10 mb-12">
         <div className="bg-[#f4f6f8] rounded-[2.5rem] p-8 sm:p-12 shadow-bubble border border-[#e5e9ee]">
           <div className="text-center max-w-3xl mx-auto mb-10">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">
-              OUR JOURNEY
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">
-              Corporate Evolution Timeline
-            </h2>
-            <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">
-              From foundational composite modeling to delivering over 1,000,000 m² of jointless industrial flooring worldwide.
-            </p>
+            <span className="text-xs font-bold uppercase tracking-widest text-[#006e21] bg-[#006e21]/10 px-4 py-1.5 rounded-full inline-block mb-2">{aboutInfo.pageText["section7Text1"]}</span>
+            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#00356a]">{aboutInfo.pageText["section7Text2"]}</h2>
+            <p className="mt-2 text-xs sm:text-sm text-[#00356a]/70">{aboutInfo.pageText["section7Text3"]}</p>
           </div>
 
           <div className="space-y-4 max-w-3xl mx-auto">
-            {EVOLUTION_TIMELINE.map((item, idx) => (
+            {aboutInfo.timeline.map((item, idx) => (
               <div
                 key={idx}
                 className={`p-5 rounded-2xl border transition-all ${
@@ -604,7 +471,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onOpenConsultation }) => {
               className="px-8 py-4 rounded-full bg-[#006e21] hover:bg-[#005a1b] text-white text-xs font-bold uppercase tracking-wider shadow-bubble-sm hover:shadow-bubble transition-all cursor-pointer inline-flex items-center gap-2"
             >
               <Users className="w-4 h-4" />
-              <span>Partner With Our Engineering Leadership</span>
+              <span>{aboutInfo.pageText["section7Text4"]}</span>
             </button>
           </div>
         </div>
