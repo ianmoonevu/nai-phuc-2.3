@@ -8,7 +8,8 @@ export function Analytics() {
   const { branding, isAdminAuthenticated } = useData();
   const id = normalizeGa4Id(branding.ga4MeasurementId);
   useEffect(() => {
-    if (!id) return;
+    // GTM owns analytics when its container is installed; never add a second GA4 tag.
+    if (document.getElementById('hoki-gtm') || !id) return;
     const w = window as unknown as AnalyticsWindow;
     const disabled = branding.ga4Enabled !== true || isAdminAuthenticated;
     w[`ga-disable-${id}`] = disabled;

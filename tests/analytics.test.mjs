@@ -41,3 +41,16 @@ const restored = backup.validateBackup(backup.createBackup(original));
 assert.equal(restored.branding.ga4MeasurementId, 'G-ABC1234567');
 assert.equal(backup.mergeBackup(original, { branding: { headerLogoUrl: '/logo.svg' } }, 'merge').branding.ga4Enabled, true);
 console.log('PASS: ID validation, URL privacy, navigation deduplication, disabled/admin suppression, script loading, backup roundtrip.');
+
+// Installed GTM suppresses the legacy injector even with an enabled direct ID.
+scripts.push({ id: 'hoki-gtm' });
+data.isAdminAuthenticated = false;
+const beforeGtm = window.dataLayer.length;
+component.Analytics(); effect();
+assert.equal(window.dataLayer.length, beforeGtm);
+assert.equal(scripts.filter(s => s.id.startsWith('hoki-ga4')).length, 1);
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+assert.equal((html.match(/GTM-5TCPTXZ2/g) || []).length, 2);
+assert.ok(html.indexOf('id="hoki-gtm"') < html.indexOf('</head>'));
+assert.ok(/<body[^>]*>\s*<!-- Google Tag Manager \(noscript\) -->\s*<noscript>/.test(html));
+console.log('PASS: GTM snippet placement, container ID and legacy GA4 suppression.');

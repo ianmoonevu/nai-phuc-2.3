@@ -27,6 +27,15 @@ export function AdminAnalyticsSection() {
       window.location.reload();
     } catch (e) { setMessage((e as Error).message); setBusy(false); }
   }
+  if (document.getElementById('hoki-gtm')) return <section className="bg-white rounded-2xl p-6 space-y-5 border border-slate-200">
+    <h2 className="text-xl font-bold">Google Tag Manager</h2>
+    <p>Website đã cài container <strong>GTM-5TCPTXZ2</strong>.</p>
+    <p>Quản lý GA4 trong Google Tag Manager. GA4 trực tiếp trên website được bỏ qua để tránh đếm trùng; mã đã lưu vẫn được giữ trong backup.</p>
+    <p>Trong GTM, tạo Google tag với mã G-… của anh, chọn trigger phù hợp rồi Preview và Submit / Publish.</p>
+    <p>Đo chuyển trang React: dùng Page changes based on browser history events của GA4 hoặc thiết lập History Change trong GTM, chỉ chọn một cách.</p>
+    <p>Việc loại trừ trang và phiên Admin cần cấu hình trong GTM. Nút bật/tắt GA4 trực tiếp trước đây không điều khiển container GTM.</p>
+    <a className="text-blue-700 underline" href="https://tagmanager.google.com/" target="_blank" rel="noopener noreferrer">Mở Google Tag Manager</a>
+  </section>;
   return <section className="bg-white rounded-2xl p-6 space-y-5 border border-slate-200">
     <h2 className="text-xl font-bold">Google Analytics 4</h2>
     <p>Nhập mã GA4 để đo lượt xem các trang công khai. Cấu hình được lưu trong System Backup cùng Branding.</p>
