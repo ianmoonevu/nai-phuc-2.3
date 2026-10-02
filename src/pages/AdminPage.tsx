@@ -1,3 +1,4 @@
+import { AdminAnalyticsSection } from '../components/AdminAnalyticsSection';
 import React, { useState, useRef } from 'react';
 import { useContent as useData } from '../context/ContentContext';
 import { AdminProductsSection } from '../components/AdminProductsSection';
@@ -93,7 +94,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     logoutAdmin
   } = useData();
 
-  const [activeTab, setActiveTab] = useState<'products' | 'dashboard' | 'knowledge' | 'projects' | 'epc' | 'about' | 'media' | 'branding' | 'video' | 'hotline' | 'system'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'products' | 'dashboard' | 'knowledge' | 'projects' | 'epc' | 'about' | 'media' | 'branding' | 'video' | 'hotline' | 'analytics' | 'system'>('dashboard');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -727,6 +728,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             <span>Project Dossiers ({projects.length})</span>
           </button>
 
+          <button id="admin-tab-analytics" onClick={() => setActiveTab('analytics')} className={`px-5 py-3 rounded-xl text-xs font-bold uppercase ${activeTab === 'analytics' ? 'bg-[#00356a] text-white' : ''}`}>Google Analytics</button>
           <button id="admin-tab-products" onClick={() => setActiveTab('products')} className={`px-5 py-3 rounded-xl text-xs font-bold uppercase ${activeTab === 'products' ? 'bg-[#00356a] text-white' : ''}`}>Products</button>
           <button
             id="admin-tab-epc"
@@ -818,6 +820,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
           </button>
         </div>
 
+        {activeTab === 'analytics' && <AdminAnalyticsSection />}
         {activeTab === 'products' && <AdminProductsSection />}
         {/* TAB 0: DASHBOARD OVERVIEW */}
         {activeTab === 'dashboard' && (

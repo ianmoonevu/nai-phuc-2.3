@@ -187,6 +187,8 @@ export interface SiteSocialLinks {
 }
 
 export interface SiteBranding {
+  ga4MeasurementId?: string;
+  ga4Enabled?: boolean;
   headerLogoUrl?: string;
   headerLogoHeight?: number;
   footerLogoUrl?: string;

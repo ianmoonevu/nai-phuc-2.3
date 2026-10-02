@@ -1,3 +1,4 @@
+import { Analytics } from './components/Analytics';
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { PageRoute, FiberProduct, ProjectCaseStudy, JournalArticle } from './types';
 import { Header } from './components/Header';
@@ -104,6 +105,7 @@ export default function App() {
         selectedArticle={selectedArticle}
       />
 
+      <Analytics />
       {/* 1. Standardized Sticky Header */}
       <Header
         currentRoute={currentRoute}
