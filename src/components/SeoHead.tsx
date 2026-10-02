@@ -1,3 +1,5 @@
+import { useContent } from '../context/ContentContext';
+import { getProjectDetailPath, slugify } from '../utils/router';
 import React, { useEffect } from 'react';
 import { PageRoute, FiberProduct, ProjectCaseStudy, JournalArticle } from '../types';
 
@@ -18,7 +20,7 @@ interface RouteMetaConfig {
   breadcrumbName: string;
 }
 
-const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://ais-dev-7ep6olpcdrgygdo5vtcz6p-39232348117.asia-southeast1.run.app';
+const BASE_URL = (import.meta.env.VITE_SITE_URL || 'https://hokimetal.vn').replace(/\/+$/, '');
 
 const ROUTE_META_MAP: Record<PageRoute, RouteMetaConfig> = {
   home: {
@@ -105,10 +107,14 @@ const ROUTE_META_MAP: Record<PageRoute, RouteMetaConfig> = {
 
 export const SeoHead: React.FC<SeoHeadProps> = ({
   currentRoute,
-  selectedDossier,
-  selectedCase,
+  selectedDossier: modalProduct,
+  selectedCase: modalCase,
   selectedArticle,
 }) => {
+  const { projects, products } = useContent();
+  const projectSlug = decodeURIComponent(window.location.pathname.split('/')[2] || '');
+  const selectedCase = modalCase || (currentRoute === 'project-detail' ? projects.find(p => (p.slug || slugify(p.title)) === projectSlug || p.id === projectSlug || p.code.toLowerCase() === projectSlug) : null);
+  const selectedDossier = modalProduct || (currentRoute === 'products' ? products.find(p => p.id === new URLSearchParams(window.location.search).get('product')) : null);
   useEffect(() => {
     // 1. Determine active metadata based on route or open modal
     let meta = ROUTE_META_MAP[currentRoute] || ROUTE_META_MAP.home;
@@ -120,20 +126,20 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
         title: `${selectedDossier.name} (${selectedDossier.series}) Technical Dossier | HOKI Structural Fiber`,
         description: `Certified engineering specifications for ${selectedDossier.name}. Tensile: ${selectedDossier.tensileStrength}, Aspect Ratio: ${selectedDossier.aspectRatio}, Geometry: ${selectedDossier.geometry}. Complies with ${selectedDossier.standards.join(', ')}.`,
         keywords: `${selectedDossier.name}, ${selectedDossier.series}, ${selectedDossier.tensileStrength}, TR34 steel fiber, EN 14889-1 System 1, ASTM A820`,
-        canonicalPath: `/products?id=${selectedDossier.id}`,
+        canonicalPath: `/products?product=${encodeURIComponent(selectedDossier.id)}`,
         ogType: 'product',
       };
-      canonicalUrl = `${BASE_URL}/products?id=${selectedDossier.id}`;
+      canonicalUrl = `${BASE_URL}/products?product=${encodeURIComponent(selectedDossier.id)}`;
     } else if (selectedCase) {
       meta = {
         ...meta,
         title: `${selectedCase.title} Case Study (${selectedCase.area}) | HOKI Structural Fiber`,
         description: `Engineering dossier: ${selectedCase.title} in ${selectedCase.location}. ${selectedCase.description} Dosed at ${selectedCase.specifications.dosage} using ${selectedCase.specifications.fiberSeries}.`,
         keywords: `${selectedCase.title}, ${selectedCase.location}, SFRC industrial floor, ${selectedCase.specifications.dosage}, ${selectedCase.specifications.concreteGrade}`,
-        canonicalPath: `/projects?id=${selectedCase.id}`,
+        canonicalPath: getProjectDetailPath(selectedCase.slug || slugify(selectedCase.title)),
         ogType: 'article',
       };
-      canonicalUrl = `${BASE_URL}/projects?id=${selectedCase.id}`;
+      canonicalUrl = `${BASE_URL}${getProjectDetailPath(selectedCase.slug || slugify(selectedCase.title))}`;
     } else if (selectedArticle) {
       meta = {
         ...meta,
@@ -174,8 +180,8 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
     // 3. Inject standard SEO Header meta tags
     setMetaTag('name', 'description', meta.description);
     setMetaTag('name', 'keywords', meta.keywords);
-    setMetaTag('name', 'robots', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
-    setMetaTag('name', 'googlebot', 'index, follow');
+    setMetaTag('name', 'robots', currentRoute === 'admin' ? 'noindex, nofollow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+    setMetaTag('name', 'googlebot', currentRoute === 'admin' ? 'noindex, nofollow' : 'index, follow');
     setMetaTag('name', 'author', 'HOKI Structural Fiber Research Directorate');
     setMetaTag('name', 'publisher', 'HOKI Structural Fiber');
     setMetaTag('name', 'copyright', 'HOKI Structural Fiber');
