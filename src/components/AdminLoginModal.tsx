@@ -31,6 +31,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
 
   const idInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
@@ -52,11 +54,13 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Verification check: ID must be "admin" and password must be "123qwe"
-    const success = loginAdmin(adminId, password);
+    if (submitting.current) return;
+    submitting.current = true; setBusy(true);
+    let success = false;
+    try { success = await loginAdmin(adminId, password); } finally { submitting.current = false; setBusy(false); setPassword(''); }
 
     if (success) {
       setErrorMessage(null);
@@ -145,7 +149,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 {errorMessage}
               </p>
               <div className="text-[11px] text-rose-700/90 font-semibold pt-0.5">
-                Please verify that ID is <span className="font-mono bg-rose-100 px-1.5 py-0.5 rounded text-rose-900">admin</span> and your password is correct.
+                Please check your login details and try again.
               </div>
             </div>
           </div>
@@ -251,9 +255,10 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             <button
               type="submit"
               id="admin-login-submit-btn"
+              disabled={busy}
               className="px-6 py-2.5 rounded-full bg-[#00356a] text-white text-xs font-bold uppercase tracking-wider shadow-bubble-sm hover:bg-[#002850] active:scale-98 transition-all flex items-center gap-2 cursor-pointer"
             >
-              <span>Log In</span>
+              <span>{busy ? 'Signing in…' : 'Log In'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>

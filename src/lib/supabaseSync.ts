@@ -22,7 +22,8 @@ async function upsertDocument<T extends Record<string, any>>(
   tableName: string,
   primaryPayload: Record<string, any>,
   itemData: T,
-  id: string = 'default'
+  id: string = 'default',
+  mode: 'insert' | 'upsert' = 'upsert'
 ): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;
@@ -35,7 +36,7 @@ async function upsertDocument<T extends Record<string, any>>(
   };
 
   try {
-    await writeDocument(supabase, tableName, docPayload, itemData);
+    await writeDocument(supabase, tableName, docPayload, itemData, mode);
     return true;
   } catch (err) {
     console.error(`Exception during upsert to "${tableName}":`, err);
@@ -485,9 +486,9 @@ export async function fetchConsultationsFromSupabase(): Promise<ConsultationRequ
   }
 }
 
-export async function saveConsultationToSupabase(req: ConsultationRequest): Promise<boolean> {
+export async function saveConsultationToSupabase(req: ConsultationRequest, createOnly = false): Promise<boolean> {
   const row = mapConsultationToRow(req);
-  const success = await upsertDocument('consultation_requests', row, req, req.id);
+  const success = await upsertDocument('consultation_requests', row, req, req.id, createOnly ? 'insert' : 'upsert');
   if (!success) {
     // Attempt fallback to alias table 'consultations'
     return upsertDocument('consultations', row, req, req.id);
