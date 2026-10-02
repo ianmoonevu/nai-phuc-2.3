@@ -364,40 +364,7 @@ ALTER TABLE public.about_page_info ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.about_info ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.epc_section_config ENABLE ROW LEVEL SECURITY;
 
--- Allow public anonymous read access to all content tables
-DO $$ 
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'site_branding' AND policyname = 'Public Access site_branding') THEN
-    CREATE POLICY "Public Access site_branding" ON public.site_branding FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'projects' AND policyname = 'Public Access projects') THEN
-    CREATE POLICY "Public Access projects" ON public.projects FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'articles' AND policyname = 'Public Access articles') THEN
-    CREATE POLICY "Public Access articles" ON public.articles FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'consultation_requests' AND policyname = 'Public Access consultation_requests') THEN
-    CREATE POLICY "Public Access consultation_requests" ON public.consultation_requests FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'consultations' AND policyname = 'Public Access consultations') THEN
-    CREATE POLICY "Public Access consultations" ON public.consultations FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'media_items' AND policyname = 'Public Access media_items') THEN
-    CREATE POLICY "Public Access media_items" ON public.media_items FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'epc_partners' AND policyname = 'Public Access epc_partners') THEN
-    CREATE POLICY "Public Access epc_partners" ON public.epc_partners FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'about_page_info' AND policyname = 'Public Access about_page_info') THEN
-    CREATE POLICY "Public Access about_page_info" ON public.about_page_info FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'about_info' AND policyname = 'Public Access about_info') THEN
-    CREATE POLICY "Public Access about_info" ON public.about_info FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'epc_section_config' AND policyname = 'Public Access epc_section_config') THEN
-    CREATE POLICY "Public Access epc_section_config" ON public.epc_section_config FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-END $$;
+-- Access policies are installed by supabase/admin-access.sql after Auth provisioning.
 
 -- =========================================================================
 -- REALTIME REPLICATION CONFIGURATION
@@ -479,18 +446,7 @@ ON CONFLICT (id) DO UPDATE SET
   public = true,
   file_size_limit = 52428800;
 
--- Storage policies for the 'media' bucket (Public read, write, update, delete)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public Access media bucket'
-  ) THEN
-    CREATE POLICY "Public Access media bucket" ON storage.objects
-      FOR ALL
-      USING (bucket_id = 'media')
-      WITH CHECK (bucket_id = 'media');
-  END IF;
-END $$;
+-- Storage access is installed by supabase/admin-access.sql.
 
 -- =========================================================================
 -- SEED INITIAL DEFAULT RECORDS

@@ -1,3 +1,4 @@
+import { useAdminAuth } from './useAdminAuth';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   ProjectCaseStudy,
@@ -306,7 +307,7 @@ interface DataContextType {
   exportBackupData: (type?: 'all' | 'projects' | 'knowledge') => any;
   importBackupData: (payload: any, mode?: 'merge' | 'replace') => { success: boolean; projectCount: number; articleCount: number; message: string };
   isAdminAuthenticated: boolean;
-  loginAdmin: (id: string, pass: string) => boolean;
+  loginAdmin: (id: string, pass: string) => Promise<boolean>;
   logoutAdmin: () => void;
 
   // EPC Partners (Main Page)
@@ -341,7 +342,6 @@ const PROJECTS_STORAGE_KEY = 'hoki_projects_v1';
 const ARTICLES_STORAGE_KEY = 'hoki_articles_v1';
 const MEDIA_STORAGE_KEY = 'hoki_media_v1';
 const CONSULTATIONS_STORAGE_KEY = 'hoki_consultations_v1';
-const ADMIN_AUTH_KEY = 'hoki_admin_auth_session';
 const BRANDING_STORAGE_KEY = 'hoki_branding_v1';
 const EPC_PARTNERS_STORAGE_KEY = 'hoki_epc_partners_v1';
 const EPC_CONFIG_STORAGE_KEY = 'hoki_epc_config_v1';
@@ -448,20 +448,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return INITIAL_MEDIA_ITEMS;
   });
 
-  const [consultationRequests, setConsultationRequests] = useState<ConsultationRequest[]>(() => {
-    try {
-      const stored = localStorage.getItem(CONSULTATIONS_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return INITIAL_CONSULTATIONS;
-  });
+  const [consultationRequests, setConsultationRequests] = useState<ConsultationRequest[]>([]);
 
   const [branding, setBranding] = useState<SiteBranding>(() => {
     try {
@@ -523,11 +510,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
 
-      fetchConsultationsFromSupabase().then((data) => {
-        if (data && data.length > 0) {
-          setConsultationRequests(data);
-        }
-      });
+
 
       fetchMediaItemsFromSupabase().then((data) => {
         if (data && data.length > 0) {
@@ -570,11 +553,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
 
-      const unsubSupabaseConsultations = subscribeToConsultationsRealtime((freshConsultations) => {
-        if (freshConsultations && freshConsultations.length > 0) {
-          setConsultationRequests(freshConsultations);
-        }
-      });
+      const unsubSupabaseConsultations = () => {};
 
       const unsubSupabaseMedia = subscribeToMediaRealtime((freshMedia) => {
         if (freshMedia && freshMedia.length > 0) {
@@ -917,7 +896,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     try {
-      localStorage.setItem(CONSULTATIONS_STORAGE_KEY, JSON.stringify(consultationRequests));
+      localStorage.removeItem(CONSULTATIONS_STORAGE_KEY);
     } catch (e) {
       console.warn('Could not save consultations to localStorage:', e);
     }
@@ -1164,7 +1143,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       submittedAt: new Date().toISOString()
     };
     setConsultationRequests((prev) => [newRecord, ...prev]);
-    saveConsultationToSupabase(newRecord).catch((err) => {
+    saveConsultationToSupabase(newRecord, true).catch((err) => {
       console.warn('Could not sync consultation request to Supabase:', err);
     });
     return newRecord;
@@ -1193,36 +1172,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem(ADMIN_AUTH_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const { isAdminAuthenticated, loginAdmin, logoutAdmin } = useAdminAuth();
 
-  const loginAdmin = (id: string, pass: string): boolean => {
-    const trimmedId = id.trim();
-    if (trimmedId === 'admin' && pass === '123qwe') {
-      setIsAdminAuthenticated(true);
-      try {
-        sessionStorage.setItem(ADMIN_AUTH_KEY, 'true');
-      } catch {
-        // ignore
-      }
-      return true;
-    }
-    return false;
-  };
-
-  const logoutAdmin = () => {
-    setIsAdminAuthenticated(false);
-    try {
-      sessionStorage.removeItem(ADMIN_AUTH_KEY);
-    } catch {
-      // ignore
-    }
-  };
+  useEffect(() => {
+    let disposed = false;
+    const refresh = async () => { const rows = await fetchConsultationsFromSupabase(); if (!disposed && rows) setConsultationRequests(rows); };
+    if (!isAdminAuthenticated) { setConsultationRequests([]); return; }
+    void refresh();
+    const unsubscribe = subscribeToConsultationsRealtime(rows => { if (!disposed) setConsultationRequests(rows); });
+    return () => { disposed = true; unsubscribe(); };
+  }, [isAdminAuthenticated]);
 
   const resetToDefaults = () => {
     setProjects(PROJECT_CASES);

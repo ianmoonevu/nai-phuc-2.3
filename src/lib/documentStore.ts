@@ -14,13 +14,13 @@ export function legacyRequiredFields(table: string, item: Row): Row {
   return {};
 }
 
-export async function writeDocument(client: any, table: string, row: Row, item: Row) {
+export async function writeDocument(client: any, table: string, row: Row, item: Row, mode: 'insert' | 'upsert' = 'upsert') {
   const payload = { ...row };
   const defaults = legacyRequiredFields(table, item);
   // Every retry removes a missing column or fills one known legacy requirement.
   const limit = Object.keys(payload).length + Object.keys(defaults).length + 1;
   for (let attempt = 0; attempt < limit; attempt++) {
-    const { error } = await client.from(table).upsert(payload);
+    const { error } = await client.from(table)[mode](payload);
     if (!error) return;
     const missing = error.code === 'PGRST204'
       ? /Could not find the '([^']+)' column of '([^']+)'/.exec(error.message || '')
